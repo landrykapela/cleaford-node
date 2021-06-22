@@ -2,7 +2,7 @@ POST http://localhost:5000/signin
 Content-Type: application/json
 
 {
-    "email":"landry@gmail.com","password":"password"
+    "email":"landry@gmail.com","password":"password1"
 }
 
 ###
@@ -10,7 +10,7 @@ POST http://localhost:5000/signup
 Content-Type: application/json
 
 {
-    "email":"landry@gmail.com","password":"password1"
+    "email":"kapela@gmail.com","password":"password2"
 }
 
 ###

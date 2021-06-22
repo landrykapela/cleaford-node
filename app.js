@@ -6,7 +6,7 @@ const db = require("./controllers/db");
 const app = express();
 
 //set CORS
-app.use((req, res, next) => {
+app.options("/",(req, res, next) => {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "POST,GET,PUT,PATCH,DELETE");
   res.setHeader(
@@ -40,7 +40,7 @@ const authenticateToken=(req,res,next)=>{
   }
 }
 //test db connection
-app.get("/test-connection",authenticateToken,(req,res,next)=>{
+app.get("/test-connection",(req,res,next)=>{
     db.testDbConnection()
     .then(result=>{
         res.status(200).json({result});

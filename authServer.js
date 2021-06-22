@@ -2,6 +2,7 @@ require('dotenv').config();
 const express = require('express');
 const jwt = require('jsonwebtoken');
 const db = require("./controllers/db");
+const cors = require('cors');
 const app = express();
 
 let tokens = [];
@@ -10,7 +11,16 @@ const generateAccessToken = (user)=>{
 }
 
 app.use(express.json());
-
+//set CORS
+app.use((req, res, next) => {
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    res.setHeader("Access-Control-Allow-Methods", "POST,GET,PUT,PATCH,DELETE");
+    res.setHeader(
+      "Access-Control-Allow-Headers",
+      "Origin, X-Requested-With, Content, Accept, Content-Type, Authorization"
+    );
+    next();
+  });
 app.post("/signin",(req,res)=>{
     let user = {email:req.body.email,password:req.body.password};
     db.signIn(user.email,user.password).then(result=>{

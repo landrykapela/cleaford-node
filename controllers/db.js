@@ -177,23 +177,26 @@ exports.createClient = (data)=>{
 }
 
 //signup
-exports.signUp =(data)=>{
+exports.signUp =(user)=>{
     return new Promise((resolve,reject)=>{
         let sql = "insert into root_tb(ref,db,email,password,token) values (?)";
         let ref = crypto.randomBytes(8).toString('hex');
         let db = "space_"+ref;
-        console.log("data: ",ref);
         bcrypt.hash(data.password,10).then((hash)=>{
-            let values = [ref,db,data.email,hash,data.token]        
+            let values = [ref,db,user.email,hash,user.token]        
             pool.query(sql,[values],(err,result)=>{
                 if(err){
                     console.error("db.signUp(): ",err);
                     reject("Could not signup user");
                 }
                 else{
-                    console.log("db.signUp(): ","Signup successful");
-                    delete data.password;
-                    resolve(data);
+                    db.getUser(result.insertId)
+                    .then(u=>{
+                        resolve(u)
+                    }).catch(e=>{
+                        resolve(user);
+                    })
+                    
                 }
             })
         })
@@ -205,7 +208,6 @@ exports.signUp =(data)=>{
 }
 exports.signIn = (email,password)=>{
     return new Promise((resolve,reject)=>{
-        console.log("sigining in "+email);
         let sql = "select email,password from root_tb where email=?";
         pool.query(sql,[email],(err,row,field)=>{
             if(err){
@@ -213,16 +215,13 @@ exports.signIn = (email,password)=>{
                 reject("Could not sign you in at the moment")
             }
             else{
-                console.log("result: ",row)
+                console.log("result: ",password)
                 let user = row[0];
-                bcrypt.compare((password,user.password)).then((result)=>{
+                bcrypt.compare(password,user.password,(err,result)=>{
                     if(result)resolve(user);
                     else{reject("Signin failed. Check password")}
                 })
-                .catch(e=>{
-                    console.error("db.singIn():",e);
-                    reject("Failed to sign in")
-                })
+                
                 
             }
         })
@@ -230,11 +229,26 @@ exports.signIn = (email,password)=>{
     });
     
 }
-exports.saveToken = (token,user)=>{
+exports.getUser = (userId)=>{
+    return new Promise((resolve,reject)=>{
+        pool.query("select id,db,ref,email,token where id=?",[userId],(e,r,f)=>{
+            if(e){
+                console.error("db.getUser(): ",e);
+                reject("Could not retrieve user details");
+            }
+            else{
+                if(r.length > 0){
+                    resolve(r[0]);
+                }
+            }
+        })
+    })
+}
+exports.updateToken = (token,user)=>{
     return new Promise((resolve,reject)=>{
         pool.query("update root_tb set token=? where email=?",[token,user.email],(e,r)=>{
             if(e){
-                console.error("db.saveToken(): ",e);
+                console.error("db.updateToken(): ",e);
                 reject("Could not save token");
             }
             else{
