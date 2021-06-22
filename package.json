@@ -11,10 +11,14 @@
     "mysql": "^2.18.1",
     "mysql2": "^2.2.5"
   },
-  "devDependencies": {},
+  "devDependencies": {
+    "dotenv": "^10.0.0",
+    "jsonwebtoken": "^8.5.1"
+  },
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "node server.js"
+    "start": "node server.js",
+    "startAuth": "node authServer.js"
   },
   "repository": {
     "type": "git",

@@ -1,6 +1,7 @@
 const express = require("express");
 const bodyParser = require("body-parser");
 const bcrypt = require("bcrypt");
+const jwt = require('jsonwebtoken');
 const db = require("./controllers/db");
 const app = express();
 
@@ -14,6 +15,7 @@ app.use((req, res, next) => {
   );
   next();
 });
+app.use(express.json())
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: false }));
 app.get("/", (req, res, next) => {
@@ -22,9 +24,23 @@ app.get("/", (req, res, next) => {
   res.status(200).json("Cleaford Running");
 });
 
-
+const authenticateToken=(req,res,next)=>{
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(" ")[1];
+  console.log("token: ",token);
+  if(token == null) return res.sendStatus(401);
+  else{
+      jwt.verify(token,process.env.ACCESS_TOKEN_SECRET,(err,user)=>{
+          if(err) return res.sendStatus(403);
+          else{
+              req.user = user;
+              next();
+          }
+      })
+  }
+}
 //test db connection
-app.get("/test-connection",(req,res,next)=>{
+app.get("/test-connection",authenticateToken,(req,res,next)=>{
     db.testDbConnection()
     .then(result=>{
         res.status(200).json({result});
@@ -33,8 +49,19 @@ app.get("/test-connection",(req,res,next)=>{
         res.status(200).json({error})
     })
 })
+
+//create client db
+app.post("/initialize",authenticateToken,(req,res)=>{
+  let user = {email:req.body.email,ref:req.body.ref,password:req.body.password};
+  db.createClientSpace(user).then(result=>{
+    res.status(200).json({result});
+  })
+  .catch(e=>{
+    res.status(200).json({e});
+  })
+})
 //sigin
-app.post("/signin", (req, res, next) => {
+app.post("/signin", (req, res) => {
   let body = req.body;
   let password = body.password;
   let email = body.email;

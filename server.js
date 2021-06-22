@@ -1,3 +1,4 @@
+require('dotenv').config();
 const https = require("https");
 const http = require("http");
 // const fs = require("fs");
@@ -6,8 +7,8 @@ const http = require("http");
 
 const app = require("./app");
 //const credentials = { key: key, cert: cert };
-
-const port = process.env.PORT || 8000;
+console.log("test: ",process.env.PORT);
+const port = process.env.PORT;
 // const port = 8000;
 app.set("port", port);
 //const secure_server = https.createServer(credentials, app);
