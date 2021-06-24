@@ -1,8 +1,7 @@
 const mysql = require("mysql");
 const config = require("./config.json");
 const bcrypt = require("bcrypt");
-const crypto = require("crypto");
-const { connect } = require("../app");
+
 
 
 //mysql pool
@@ -27,9 +26,14 @@ const randomString = (length)=>{
     return result;
 }
 
-//generate random string
-exports.generateRef = (length)=>{
-    return crypto.randomBytes(length).toString('hex');
+//generate random Password
+exports.generateRandomPassword = (length)=>{
+    let result = "";
+    var charSet = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890@?*#%";
+    for(let i=0; i<length;i++){
+        result += charSet.charAt(Math.floor(Math.random()*charSet.length));
+    }
+    return result;
 }
 //test database connection
 exports.testDbConnection = ()=>{
@@ -51,8 +55,8 @@ exports.testDbConnection = ()=>{
 exports.createClientSpace = (email)=>{
 
     return new Promise((resolve,reject)=>{
-    var ref = randomString(8);
-    var password = randomString(10);
+    var ref = randomString(8).toLowerCase();
+    var password = this.generateRandomPassword(10);
     this.getUserWithEmail(email).then(user=>{
         console.log("testing..."+user.email);
             pool.getConnection((err,connection)=>{
@@ -76,7 +80,7 @@ exports.createClientSpace = (email)=>{
                                 
                             }
                             else{
-                                 connection.query("create user '"+ref+"_admin'@'localhost' identified mysql_native_password by "+password,(e,r,f)=>{
+                                 connection.query("create user '"+ref+"_admin'@'localhost' identified with mysql_native_password by '"+password+"'",(e,r,f)=>{
                                     if(e){
                                         connection.rollback(()=>{
                                             connection.release();
@@ -104,7 +108,7 @@ exports.createClientSpace = (email)=>{
                                                             }) 
                                                         }
                                                         else{
-                                                            connection.query("update user_tb set db='space_"+ref+"' where email=?",[email],(e,r)=>{
+                                                            connection.query("update user_tb set db='space_"+ref+"',db_sec='"+password+"' where email=?",[email],(e,r)=>{
                                                                 if(e){
                                                                     connection.rollback(()=>{
                                                                         connection.release();
@@ -153,12 +157,12 @@ exports.createClientSpace = (email)=>{
 
 //get client pool
 exports.getClientPool = (user)=>{
-    let prefix = user.email.split("@")[0];
+    let prefix = user.db.split("_")[1];
     return mysql.createPool({
         socketPath:config.socket,host:config.host,
         user: prefix+"_admin",
-        database: "space_"+prefix,
-        password: 'admin',
+        database: user.db,
+        password: user.db_sec,
         waitForConnections: true,
         connectionLimit: 10,
         queueLimit: 0,
