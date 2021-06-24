@@ -6,7 +6,7 @@ const db = require("./controllers/db");
 const app = express();
 
 //set CORS
-app.options("/",(req, res, next) => {
+app.use("/",(req, res, next) => {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "POST,GET,PUT,PATCH,DELETE");
   res.setHeader(
@@ -40,7 +40,7 @@ const authenticateToken=(req,res,next)=>{
   }
 }
 //test db connection
-app.get("/test-connection",(req,res,next)=>{
+app.get("/test-connection",authenticateToken,(req,res,next)=>{
     db.testDbConnection()
     .then(result=>{
         res.status(200).json({result});
@@ -52,27 +52,16 @@ app.get("/test-connection",(req,res,next)=>{
 
 //create client db
 app.post("/initialize",authenticateToken,(req,res)=>{
-  let user = {email:req.body.email,ref:req.body.ref,password:req.body.password};
-  db.createClientSpace(user).then(result=>{
-    res.status(200).json({result});
+  db.createClientSpace(req.body.email).then(result=>{
+    console.log("testing...",result);
+    res.status(200).json(result);
   })
   .catch(e=>{
-    res.status(200).json({e});
+    console.log("testing...",e);
+    res.status(200).json(e);
   })
 })
-//sigin
-app.post("/signin", (req, res) => {
-  let body = req.body;
-  let password = body.password;
-  let email = body.email;
-  db.signIn(email, password)
-    .then((result) => {
-      res.status(200).json({ result });
-    })
-    .catch((error) => {
-      res.status(200).json({ error });
-    });
-});
+
 
 //get status
 app.get("/status", (req, res) => {

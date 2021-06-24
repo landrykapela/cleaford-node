@@ -2,20 +2,20 @@ require('dotenv').config();
 const express = require('express');
 const jwt = require('jsonwebtoken');
 const db = require("./controllers/db");
-const cors = require('cors');
+const bodyParser = require('body-parser');
 const app = express();
 
-let tokens = [];
 const generateAccessToken = (user)=>{
     return jwt.sign(user,process.env.ACCESS_TOKEN_SECRET,{expiresIn:'10m'});
 }
 
 app.use(express.json());
+app.use(bodyParser.json());
 //set CORS
 app.use((req, res, next) => {
-    res.setHeader("Access-Control-Allow-Origin", "*");
-    res.setHeader("Access-Control-Allow-Methods", "POST,GET,PUT,PATCH,DELETE");
-    res.setHeader(
+    res.header("Access-Control-Allow-Origin", "*");
+    res.header("Access-Control-Allow-Methods", "POST,GET,PUT,PATCH,DELETE");
+    res.header(
       "Access-Control-Allow-Headers",
       "Origin, X-Requested-With, Content, Accept, Content-Type, Authorization"
     );
@@ -23,14 +23,19 @@ app.use((req, res, next) => {
   });
 app.post("/signin",(req,res)=>{
     let user = {email:req.body.email,password:req.body.password};
-    db.signIn(user.email,user.password).then(result=>{
+    db.signIn(user.email,user.password).then(u=>{
         let token = generateAccessToken(user);
         let refreshToken = jwt.sign(user,process.env.REFRESH_TOKEN_SECRET);
-        db.saveToken(refreshToken,user);
-        res.json({accessToken:token,refreshToken:refreshToken});
+        db.saveToken(refreshToken,user).then(result=>{
+            result.accessToken = token;
+            res.status(200).json(result);
+        }).catch(e=>{
+            res.status(200).json(e)
+        });
     })
     .catch(e=>{
-        res.sendStatus(401)
+        console.error("error: ",e);
+        res.status(200).json(e)
     })
     
 })
@@ -50,18 +55,20 @@ app.post("/signup",(req,res)=>{
 })
 
 //signout
-app.delete("/signout",(req,res)=>{
-    tokens = tokens.filter(t=>{
-        return t !== req.body.token;
+app.post("/signout",(req,res)=>{
+    db.signout(req.body.email)
+    .then((success)=>{
+        res.status(200).json(success);
+    }).catch(e=>{
+        res.status(200).json(e);
     })
-    res.sendStatus(204);
+    
 })
 
 //refresh token
 app.post("/token",(req,res)=>{
     let token = req.body.token;
     if(token == null) res.sendStatus(401);
-    if(!tokens.includes(token)) res.sendStatus(403);
     jwt.verify(token,process.env.REFRESH_TOKEN_SECRET,(err,user)=>{
         const accessToken = generateAccessToken({email:user.email,password:user.password});
         res.json({accessToken:accessToken});
