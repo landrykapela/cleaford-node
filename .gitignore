@@ -1,3 +1,4 @@
 node_modules
 controllers/config.json
 requests.rest
+db.sql

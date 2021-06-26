@@ -6,7 +6,7 @@ const bodyParser = require('body-parser');
 const app = express();
 
 const generateAccessToken = (user)=>{
-    return jwt.sign(user,process.env.ACCESS_TOKEN_SECRET,{expiresIn:'10m'});
+    return jwt.sign(user,process.env.ACCESS_TOKEN_SECRET,{expiresIn:process.env.ACCESS_TOKEN_EXPIRATION});
 }
 
 app.use(express.json());
@@ -46,7 +46,8 @@ app.post("/signup",(req,res)=>{
     let refreshToken = jwt.sign(user,process.env.REFRESH_TOKEN_SECRET);
     user.token = refreshToken;
     db.signUp(user).then(result=>{
-        res.json({accessToken:token,refreshToken:refreshToken});
+        result.accessToken = token;
+        res.status(201).json(result);
     })
     .catch(e=>{
         res.sendStatus(203);

@@ -62,6 +62,14 @@ app.post("/initialize",authenticateToken,(req,res)=>{
   })
 })
 
+//create client record
+app.post("/client",authenticateToken,(req,res)=>{
+  let data = {name:req.body.company_name,address:req.body.address,email:req.body.email,phone:req.body.phone,contact_person:req.body.contact_person,contact_email:req.body.contact_email};
+  db.createClient(data)
+  .then(result=>{
+    res.status(201).json(result);
+  })
+})
 
 //get status
 app.get("/status", (req, res) => {

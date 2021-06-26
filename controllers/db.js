@@ -65,7 +65,7 @@ exports.createClientSpace = (email)=>{
                         connection.rollback(()=>{
                             connection.release();
                             console.error("createClientDb(): ",err);
-                            reject("Could not create client space");
+                            reject({code:1,msg:"Could not create client space"});
                         })
                         
                     }
@@ -75,7 +75,7 @@ exports.createClientSpace = (email)=>{
                                 connection.rollback(()=>{
                                     connection.release();
                                     console.error("createClientDb(): ",e);
-                                    reject("failed to create client space");
+                                    reject({code:1,msg:"failed to create client space"});
                                 })
                                 
                             }
@@ -85,7 +85,7 @@ exports.createClientSpace = (email)=>{
                                         connection.rollback(()=>{
                                             connection.release();
                                             console.error("createClientDb(): ",e);
-                                            reject("failed to add user to client space");
+                                            reject({code:1,msg:"Failed to add user to client space"});
                                         })
                                     }
                                     else{
@@ -94,7 +94,7 @@ exports.createClientSpace = (email)=>{
                                                 connection.rollback(()=>{
                                                     connection.release();
                                                     console.error("createClientDb(): ",e);
-                                                    reject("failed to add user to client space");
+                                                    reject({code:1,msg:"Failed to add user to client space"});
                                                 })
                                             }
                                             else{
@@ -104,16 +104,17 @@ exports.createClientSpace = (email)=>{
                                                             connection.rollback(()=>{
                                                                 connection.release();
                                                                 console.error("createClientSpace(): ",e);
-                                                                reject("failed to generate client space");
+                                                                reject({code:1,msg:"Failed to generate client space"});
                                                             }) 
                                                         }
                                                         else{
+                                                            console.log("password: ",password);
                                                             connection.query("update user_tb set db='space_"+ref+"',db_sec='"+password+"' where email=?",[email],(e,r)=>{
                                                                 if(e){
                                                                     connection.rollback(()=>{
                                                                         connection.release();
                                                                         console.error("db.createClientSpace(): ",e);
-                                                                        reject("Failed to update user table");
+                                                                        reject({code:1,msg:"Failed to update user table"});
                                                                     })
                                                                 }
                                                                 else{
@@ -122,12 +123,12 @@ exports.createClientSpace = (email)=>{
                                                                             connection.rollback(()=>{
                                                                                 connection.release();
                                                                                 console.error("db.createClientSpace(): ",e);
-                                                                                reject("Failed to update user table");
+                                                                                reject({code:1,msg:"Failed to update user table"});
                                                                             })
                                                                         }
                                                                         else{
                                                                             connection.release();
-                                                                            resolve("successfully created client space");
+                                                                            resolve({code:0,msg:"successfully created client space"});
                                                                         }
                                                                     })
                                                                 }
@@ -177,7 +178,7 @@ exports.createClient = (data)=>{
                     conn.rollback(()=>{
                         conn.release();
                         console.error("db.createClient(): ",err);
-                        reject("Failed to create client");
+                        reject({code:1,msg:"Failed to create client"});
                     });
                 }
                 else{
@@ -188,7 +189,7 @@ exports.createClient = (data)=>{
                             conn.rollback(()=>{
                                 conn.release();
                                 console.error("db.createClient(): ",er);
-                                reject("Failed to add client");
+                                reject({code:1,msg:"Failed to add client"});
                             });
                         }
                         else{
@@ -197,31 +198,22 @@ exports.createClient = (data)=>{
                                     conn.rollback(()=>{
                                         conn.release();
                                         console.error("db.createClient(): ",err);
-                                        reject("Failed to commit client");
+                                        reject({code:1,msg:"Failed to commit client"});
                                     });
                                 }
                                 else{
                                     conn.release();
                                     console.log("db.createClient(): ","successful");
-                                    resolve("Successul");
+                                    resolve({code:0,msg:"Successul"});
                                 }
                             })
                         }
                     })
                 }
             })
-        })
-         pool.query(sql,[values],(error,rows,field)=>{
-            if(error){
-                console.error("db.createClient(): ",error);
-                reject("Could not create client");
-            }
-            else{
-                console.log("result:",rows);
-                resolve("Successful");
-            }
-        })
-    })
+        });
+ 
+    });
 }
 
 //signout
@@ -245,7 +237,8 @@ exports.signUp =(user)=>{
         // let ref = crypto.randomBytes(4).toString('hex');
         // let db = "space_"+ref;
         bcrypt.hash(user.password,10).then((hash)=>{
-            let values = [user.email,hash,user.token,Date.getTime()]        
+            let now = Date.now();
+            let values = [user.email,hash,user.token,now]        
             pool.query(sql,[values],(err,result)=>{
                 if(err){
                     console.error("db.signUp(): ",err);
