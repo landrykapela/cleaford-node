@@ -67,6 +67,9 @@ app.post("/client",authenticateToken,(req,res)=>{
   let data = {name:req.body.company_name,address:req.body.address,email:req.body.email,phone:req.body.phone,contact_person:req.body.contact_person,contact_email:req.body.contact_email};
   db.createClient(data)
   .then(result=>{
+    if(result.code == 0){
+      db.getClientInfo(data.email)
+    }
     res.status(201).json(result);
   })
 })
