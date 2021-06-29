@@ -84,10 +84,10 @@ app.post("/token",(req,res)=>{
 const port = process.env.AUTH_PORT;
 app.set("port",port);
 
-const httpsServer = https.createServer(credentials,app);
-httpsServer.listen(port,()=>{
-    console.log("Cleaford AuthServer running on ",port);
-})
-// app.listen(port,()=>{
+// const httpsServer = https.createServer(credentials,app);
+// httpsServer.listen(port,()=>{
 //     console.log("Cleaford AuthServer running on ",port);
 // })
+app.listen(port,()=>{
+    console.log("Cleaford AuthServer running on ",port);
+})

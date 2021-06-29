@@ -169,6 +169,7 @@ exports.getClientPool = (user)=>{
         queueLimit: 0,
     })
 }
+
 //create client
 exports.createClient = (data)=>{
     return new Promise((resolve,reject)=>{
@@ -216,6 +217,21 @@ exports.createClient = (data)=>{
     });
 }
 
+//get list of clients
+exports.getClientList =()=>{
+    return new Promise((resolve,reject)=>{
+        var sql = "select * from client_tb";
+        pool.query(sql,(e,r,f)=>{
+            if(e){
+                console.error("db.getClientList(): ",e);
+                reject({code:1,msg:"Failed to retrieve client list"});
+            }
+            else{
+                resolve({code:0,msg:"Successful",data:r});
+            }
+        })
+    })
+}
 //signout
 exports.signout =(email)=>{
     return new Promise((resolve,reject)=>{
@@ -274,8 +290,11 @@ exports.signIn = (email,password)=>{
                     let user = row[0];
                     bcrypt.compare(password,user.password,(err,success)=>{
                         if(err) reject("Signin failed. Check password");
-                        if(success)resolve(user);
-                        reject({error:"Invalid Password"});
+                        if(success){
+                            delete user.password;
+                            resolve(user);
+                        }
+                        else reject({error:"Invalid Password"});
                     });
                 }
                 else{

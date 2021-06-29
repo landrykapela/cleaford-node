@@ -74,6 +74,17 @@ app.post("/client",authenticateToken,(req,res)=>{
   })
 })
 
+//getclients
+app.get("/clients",authenticateToken,(req,res)=>{
+  db.getClientList()
+  .then(result=>{
+   res.status(200).json(result);
+   
+  })
+  .catch(err=>{
+    res.status(200).json(result);
+  })
+})
 //get status
 app.get("/status", (req, res) => {
   db.getStata()
