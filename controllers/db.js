@@ -64,7 +64,7 @@ exports.createClientSpace = (email)=>{
                     if(err){
                         connection.rollback(()=>{
                             connection.release();
-                            console.error("createClientDb(): ",err);
+                            console.error("createClientSpace(): ",err);
                             reject({code:1,msg:"Could not create client space"});
                         })
                         
@@ -74,7 +74,7 @@ exports.createClientSpace = (email)=>{
                             if(e){
                                 connection.rollback(()=>{
                                     connection.release();
-                                    console.error("createClientDb(): ",e);
+                                    console.error("createClientSpace(): ",e);
                                     reject({code:1,msg:"failed to create client space"});
                                 })
                                 
@@ -84,7 +84,7 @@ exports.createClientSpace = (email)=>{
                                     if(e){
                                         connection.rollback(()=>{
                                             connection.release();
-                                            console.error("createClientDb(): ",e);
+                                            console.error("createClientSpace(): ",e);
                                             reject({code:1,msg:"Failed to add user to client space"});
                                         })
                                     }
@@ -109,7 +109,7 @@ exports.createClientSpace = (email)=>{
                                                         }
                                                         else{
                                                             console.log("password: ",password);
-                                                            connection.query("update user_tb set db='space_"+ref+"',db_sec='"+password+"' where email=?",[email],(e,r)=>{
+                                                            connection.query("update user_tb set db=?,db_sec=? where email=?",["space_"+ref,password,email],(e,r)=>{
                                                                 if(e){
                                                                     connection.rollback(()=>{
                                                                         connection.release();
@@ -183,8 +183,11 @@ exports.createClient = (data)=>{
                     });
                 }
                 else{
-                    var sql = "insert into client_tb (name,address,email,phone,contact_person,contact_email,date_created) values (?)";
-                    let values = [data.name,data.address,data.email,data.phone,data.contact_person,data.contact_email,Date.now()]
+                    // if(data.user === 0){
+                    //     // this.signUp()
+                    // }
+                    var sql = "insert into client_tb (status,logo,name,address,email,phone,contact_person,contact_email,date_created) values (?)";
+                    let values = [1,data.logo,data.name,data.address,data.email,data.phone,data.contact_person,data.contact_email,Date.now()]
                     conn.query(sql,[values],(er,res)=>{
                         if(er){
                             conn.rollback(()=>{
@@ -258,7 +261,7 @@ exports.signUp =(user)=>{
             pool.query(sql,[values],(err,result)=>{
                 if(err){
                     console.error("db.signUp(): ",err);
-                    reject("Could not signup user");
+                    reject({code:1,msg:"Could not signup user"});
                 }
                 else{
                     this.getUser(result.insertId)

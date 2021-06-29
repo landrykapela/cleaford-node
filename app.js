@@ -24,6 +24,9 @@ app.get("/", (req, res, next) => {
   res.status(200).json("Cleaford Running");
 });
 
+const generateAccessToken = (user)=>{
+  return jwt.sign(user,process.env.ACCESS_TOKEN_SECRET,{expiresIn:process.env.ACCESS_TOKEN_EXPIRATION});
+}
 const authenticateToken=(req,res,next)=>{
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(" ")[1];
@@ -65,13 +68,42 @@ app.post("/initialize",authenticateToken,(req,res)=>{
 //create client record
 app.post("/client",authenticateToken,(req,res)=>{
   let data = {name:req.body.company_name,address:req.body.address,email:req.body.email,phone:req.body.phone,contact_person:req.body.contact_person,contact_email:req.body.contact_email};
-  db.createClient(data)
-  .then(result=>{
-    if(result.code == 0){
-      db.getClientInfo(data.email)
-    }
-    res.status(201).json(result);
-  })
+  if(req.body.user == 0){
+    let randomPass = db.generateRandomPassword(8);
+    console.log("random: ",randomPass);
+    let user = {email:data.email,password:randomPass};
+    let token = jwt.sign(user,process.env.REFRESH_TOKEN_SECRET);
+    user.token = token;
+    db.signUp(user).then(response=>{
+      db.createClientSpace(user.email).then(response=>{
+        db.createClient(data)
+        .then(result=>{
+          if(result.code == 0){
+            db.getClientList().then(response=>{
+              res.status(201).json(response);
+            })
+          }
+          else{
+            res.status(200).json(result);
+          }
+        }).catch(e=>{
+          res.status(200).json(e);
+        })
+      }).catch(e=>{
+        res.status(200).json(e);
+      })
+      
+    }).catch(e=>{
+      res.status(200).json(e);
+    })
+  }
+  else{
+    db.createClient(data).then(response=>{
+      res.status(200).json(response);
+    }).catch(e=>{
+      res.status(200).json(e);
+    })
+  }
 })
 
 //getclients
@@ -82,7 +114,7 @@ app.get("/clients",authenticateToken,(req,res)=>{
    
   })
   .catch(err=>{
-    res.status(200).json(result);
+    res.status(200).json(err);
   })
 })
 //get status
