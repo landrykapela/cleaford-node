@@ -4,3 +4,4 @@ requests.rest
 db.sql
 server.js
 authServer.js
+reset_db.sh

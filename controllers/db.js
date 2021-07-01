@@ -1,7 +1,7 @@
 const mysql = require("mysql");
 const config = require("./config.json");
 const bcrypt = require("bcrypt");
-
+require("dotenv").config();
 
 
 //mysql pool
@@ -219,7 +219,24 @@ exports.createClient = (data)=>{
  
     });
 }
-
+//update client
+exports.updateClient=(data)=>{
+    console.log("updating...",data);
+    return new Promise((resolve,reject)=>{
+        let sql = "update client_tb set phone=?,name=?,email=?,address=?,contact_person=?,contact_email=?,logo=? where id=?";
+        let values = [data.phone,data.name,data.email,data.address,data.contact_person,data.contact_email,data.logo,data.id];
+        pool.query(sql,values,(e,r)=>{
+            if(e){
+                console.error("db.updateClient(): ",e);
+                reject({code:1,msg:"Could not update client data"});
+            }
+            else{
+                console.log("successful: ",r);
+                resolve({code:0,msg:"Successfully updated Client data"});
+            }
+        })
+    })
+}
 //get list of clients
 exports.getClientList =()=>{
     return new Promise((resolve,reject)=>{
@@ -235,6 +252,24 @@ exports.getClientList =()=>{
         })
     })
 }
+//get single client record
+exports.getClient = (email)=>{
+    return new Promise((resolve,reject)=>{
+        let sql = "select * from client_tb where email=?";
+        
+        pool.query(sql,[email],(e,r,f)=>{
+            if(e){
+                console.error("db.getClientList(): ",e);
+                reject({code:1,msg:"Failed to retrieve client list"});
+            }
+            else{
+                console.log("test2 from getClient: ",r[0]);
+                resolve({code:0,msg:"Successful",data:r[0]});
+            }
+        })
+    })
+}
+
 //signout
 exports.signout =(email)=>{
     return new Promise((resolve,reject)=>{
@@ -282,7 +317,7 @@ exports.signUp =(user)=>{
 }
 exports.signIn = (email,password)=>{
     return new Promise((resolve,reject)=>{
-        let sql = "select email,password from user_tb where email=?";
+        let sql = "select * from user_tb where email=?";
         pool.query(sql,[email],(err,row,field)=>{
             if(err){
                 console.error("db.signIn(): ",err);
@@ -294,8 +329,15 @@ exports.signIn = (email,password)=>{
                     bcrypt.compare(password,user.password,(err,success)=>{
                         if(err) reject("Signin failed. Check password");
                         if(success){
-                            delete user.password;
-                            resolve(user);
+                            this.getClient(user.email).then(result=>{
+                                user.detail = result.data;
+                                resolve(user);
+                            })
+                            .catch(e=>{
+                                console.log("e: ",e);
+                                resolve(user);
+                            })
+                            
                         }
                         else reject({error:"Invalid Password"});
                     });
@@ -343,19 +385,25 @@ exports.getUserWithEmail = (email)=>{
     })
    
 }
-exports.saveToken = (token,user)=>{
+exports.saveToken = (token,email)=>{
     return new Promise((resolve,reject)=>{
-        pool.query("update user_tb set token=? where email=?",[token,user.email],(e,r)=>{
+        pool.query("update user_tb set token=? where email=?",[token,email],(e,r)=>{
             if(e){
                 console.error("db.saveToken(): ",e);
                 reject("Could not save token");
             }
             else{
-                this.getUserWithEmail(user.email)
-                .then(user=>{
-                    resolve(user);
-                })
-                
+                // this.getUserWithEmail(email)
+                // .then(user=>{
+                //     this.getClient(user.id).then(r=>{
+                //         user.detail = r;
+                //         resolve(user);
+                //     }).catch(e=>{
+                //         resolve(user);
+                //     })
+                    
+                // })
+                resolve("Successful");
             }
         })
     })
@@ -372,4 +420,35 @@ exports.getCustomers = ()=>{
         console.log("getting customers...");
         resolve("successful");
     });
+}
+
+//rolses
+exports.createRole = (data)=>{
+    return new Promise((resolve,reject)=>{
+        let sql = "insert into roles_tb (name,permission) values (?)";
+        let values = [data.name,data.permission];
+        pool.query(sql,[values],(e,r)=>{
+            if(e){
+                console.error("db.createRole(): ",e);
+                reject({code:1,msg:"Could not create role"});
+            }
+            else{
+                resolve({code:0,msg:"Successfully created role"});
+            }
+        })
+    })
+}
+
+exports.getRoles = ()=>{
+    return new Promise((resolve,reject)=>{
+        pool.query("select * from roles_tb",(e,r,f)=>{
+            if(e){
+                console.error("db.getRoles(): ",e);
+                reject({code:1,msg:"Could not retrieve the list of roles"});
+            }
+            else{
+                resolve({code:0,msg:"Successfully",data:r});
+            }
+        });
+    })
 }

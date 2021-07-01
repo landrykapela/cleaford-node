@@ -11,8 +11,8 @@ const key = fs.readFileSync("/var/certs/cert.key").toString();
 const cert= fs.readFileSync("/var/certs/cert.pem").toString();
 const credentials = {key:key,cert:cert};
 
-const generateAccessToken = (user)=>{
-    return jwt.sign(user,process.env.ACCESS_TOKEN_SECRET,{expiresIn:process.env.ACCESS_TOKEN_EXPIRATION});
+const generateAccessToken = (cred)=>{
+    return jwt.sign(cred,process.env.ACCESS_TOKEN_SECRET,{expiresIn:process.env.ACCESS_TOKEN_EXPIRATION});
 }
 
 app.use(express.json());
@@ -30,11 +30,12 @@ app.use((req, res, next) => {
 app.post("/signin",(req,res)=>{
     let user = {email:req.body.email,password:req.body.password};
     db.signIn(user.email,user.password).then(u=>{
-        let token = generateAccessToken(user);
-        let refreshToken = jwt.sign(user,process.env.REFRESH_TOKEN_SECRET);
-        db.saveToken(refreshToken,user).then(result=>{
-            result.accessToken = token;
-            res.status(200).json(result);
+        console.log("signin: ",u);
+        let token = generateAccessToken({email:user.email});
+        let refreshToken = jwt.sign({email:user.email},process.env.REFRESH_TOKEN_SECRET);
+        db.saveToken(refreshToken,user.email).then(result=>{
+            u.accessToken = token;
+            res.status(200).json(u);
         }).catch(e=>{
             res.status(200).json(e)
         });
@@ -47,11 +48,12 @@ app.post("/signin",(req,res)=>{
 })
 
 app.post("/signup",(req,res)=>{
-    let user = {email:req.body.email,password:req.body.password};
-    let token = generateAccessToken(user);
-    let refreshToken = jwt.sign(user,process.env.REFRESH_TOKEN_SECRET);
-    user.token = refreshToken;
-    db.signUp(user).then(result=>{
+    let cred = {email:req.body.email};
+    let token = generateAccessToken(cred);
+    let refreshToken = jwt.sign(cred,process.env.REFRESH_TOKEN_SECRET);
+    cred.token = refreshToken;
+    cred.password = req.body.password;
+    db.signUp(cred).then(result=>{
         result.accessToken = token;
         res.status(201).json(result);
     })
@@ -76,8 +78,8 @@ app.post("/signout",(req,res)=>{
 app.post("/token",(req,res)=>{
     let token = req.body.token;
     if(token == null) res.sendStatus(401);
-    jwt.verify(token,process.env.REFRESH_TOKEN_SECRET,(err,user)=>{
-        const accessToken = generateAccessToken({email:user.email,password:user.password});
+    jwt.verify(token,process.env.REFRESH_TOKEN_SECRET,(err,cred)=>{
+        const accessToken = generateAccessToken(cred);
         res.json({accessToken:accessToken});
     })
 })
