@@ -4,7 +4,7 @@ const jwt = require('jsonwebtoken');
 const db = require("./controllers/db");
 const bodyParser = require('body-parser');
 const app = express();
-
+const fs = require('fs');
 const generateAccessToken = (user)=>{
     return jwt.sign(user,process.env.ACCESS_TOKEN_SECRET,{expiresIn:'10m'});
 }
@@ -76,6 +76,9 @@ app.post("/token",(req,res)=>{
 })
 const port = process.env.AUTH_PORT;
 app.set("port",port);
-app.listen(port,()=>{
+const  key = fs.readFileSync("../certs/cert.key").toString();
+const  cert = fs.readFileSync("../certs/cert.crt").toString();
+const credentials ={key:key,cert:cert};
+require('https').createServer(credentials,app).listen(port,()=>{
     console.log("Cleaford AuthServer running on ",port);
 })
