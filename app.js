@@ -97,8 +97,15 @@ app.post("/client",authenticateToken,(req,res)=>{
     })
   }
   else{
-    db.createClient(data).then(response=>{
-      res.status(200).json(response);
+    db.createClient(data).then(result=>{
+      if(result.code == 0){
+        db.getClient(data.email).then(response=>{
+          res.status(201).json(response);
+        })
+      }
+      else{
+        res.status(200).json(result);
+      }
     }).catch(e=>{
       res.status(200).json(e);
     })
