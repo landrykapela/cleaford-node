@@ -7,8 +7,8 @@ const https = require('https');
 const app = express();
 
 const fs = require('fs');
-const key = fs.readFileSync("/var/certs/cert.key").toString();
-const cert= fs.readFileSync("/var/certs/cert.pem").toString();
+const key = fs.readFileSync("../certs/cert.key").toString();
+const cert= fs.readFileSync("../certs/cert.crt").toString();
 const credentials = {key:key,cert:cert};
 
 const generateAccessToken = (cred)=>{
@@ -86,10 +86,7 @@ app.post("/token",(req,res)=>{
 const port = process.env.AUTH_PORT;
 app.set("port",port);
 
-// const httpsServer = https.createServer(credentials,app);
-// httpsServer.listen(port,()=>{
-//     console.log("Cleaford AuthServer running on ",port);
-// })
-app.listen(port,()=>{
+const httpsServer = https.createServer(credentials,app);
+httpsServer.listen(port,()=>{
     console.log("Cleaford AuthServer running on ",port);
 })
