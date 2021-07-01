@@ -1,7 +1,7 @@
 const mysql = require("mysql");
 const config = require("./config.json");
 const bcrypt = require("bcrypt");
-
+require("dotenv").config();
 
 
 //mysql pool
@@ -64,8 +64,8 @@ exports.createClientSpace = (email)=>{
                     if(err){
                         connection.rollback(()=>{
                             connection.release();
-                            console.error("createClientDb(): ",err);
-                            reject("Could not create client space");
+                            console.error("createClientSpace(): ",err);
+                            reject({code:1,msg:"Could not create client space"});
                         })
                         
                     }
@@ -74,8 +74,8 @@ exports.createClientSpace = (email)=>{
                             if(e){
                                 connection.rollback(()=>{
                                     connection.release();
-                                    console.error("createClientDb(): ",e);
-                                    reject("failed to create client space");
+                                    console.error("createClientSpace(): ",e);
+                                    reject({code:1,msg:"failed to create client space"});
                                 })
                                 
                             }
@@ -84,8 +84,8 @@ exports.createClientSpace = (email)=>{
                                     if(e){
                                         connection.rollback(()=>{
                                             connection.release();
-                                            console.error("createClientDb(): ",e);
-                                            reject("failed to add user to client space");
+                                            console.error("createClientSpace(): ",e);
+                                            reject({code:1,msg:"Failed to add user to client space"});
                                         })
                                     }
                                     else{
@@ -94,7 +94,7 @@ exports.createClientSpace = (email)=>{
                                                 connection.rollback(()=>{
                                                     connection.release();
                                                     console.error("createClientDb(): ",e);
-                                                    reject("failed to add user to client space");
+                                                    reject({code:1,msg:"Failed to add user to client space"});
                                                 })
                                             }
                                             else{
@@ -104,16 +104,17 @@ exports.createClientSpace = (email)=>{
                                                             connection.rollback(()=>{
                                                                 connection.release();
                                                                 console.error("createClientSpace(): ",e);
-                                                                reject("failed to generate client space");
+                                                                reject({code:1,msg:"Failed to generate client space"});
                                                             }) 
                                                         }
                                                         else{
-                                                            connection.query("update user_tb set db='space_"+ref+"',db_sec='"+password+"' where email=?",[email],(e,r)=>{
+                                                            console.log("password: ",password);
+                                                            connection.query("update user_tb set db=?,db_sec=? where email=?",["space_"+ref,password,email],(e,r)=>{
                                                                 if(e){
                                                                     connection.rollback(()=>{
                                                                         connection.release();
                                                                         console.error("db.createClientSpace(): ",e);
-                                                                        reject("Failed to update user table");
+                                                                        reject({code:1,msg:"Failed to update user table"});
                                                                     })
                                                                 }
                                                                 else{
@@ -122,12 +123,12 @@ exports.createClientSpace = (email)=>{
                                                                             connection.rollback(()=>{
                                                                                 connection.release();
                                                                                 console.error("db.createClientSpace(): ",e);
-                                                                                reject("Failed to update user table");
+                                                                                reject({code:1,msg:"Failed to update user table"});
                                                                             })
                                                                         }
                                                                         else{
                                                                             connection.release();
-                                                                            resolve("successfully created client space");
+                                                                            resolve({code:0,msg:"successfully created client space"});
                                                                         }
                                                                     })
                                                                 }
@@ -168,6 +169,7 @@ exports.getClientPool = (user)=>{
         queueLimit: 0,
     })
 }
+
 //create client
 exports.createClient = (data)=>{
     return new Promise((resolve,reject)=>{
@@ -177,18 +179,21 @@ exports.createClient = (data)=>{
                     conn.rollback(()=>{
                         conn.release();
                         console.error("db.createClient(): ",err);
-                        reject("Failed to create client");
+                        reject({code:1,msg:"Failed to create client"});
                     });
                 }
                 else{
-                    var sql = "insert into client_tb (name,address,email,phone,contact_person,contact_email,date_created) values (?)";
-                    let values = [data.name,data.address,data.email,data.phone,data.contact_person,data.contact_email,Date.now()]
+                    // if(data.user === 0){
+                    //     // this.signUp()
+                    // }
+                    var sql = "insert into client_tb (status,logo,name,address,email,phone,contact_person,contact_email,date_created) values (?)";
+                    let values = [1,data.logo,data.name,data.address,data.email,data.phone,data.contact_person,data.contact_email,Date.now()]
                     conn.query(sql,[values],(er,res)=>{
                         if(er){
                             conn.rollback(()=>{
                                 conn.release();
                                 console.error("db.createClient(): ",er);
-                                reject("Failed to add client");
+                                reject({code:1,msg:"Failed to add client"});
                             });
                         }
                         else{
@@ -197,28 +202,69 @@ exports.createClient = (data)=>{
                                     conn.rollback(()=>{
                                         conn.release();
                                         console.error("db.createClient(): ",err);
-                                        reject("Failed to commit client");
+                                        reject({code:1,msg:"Failed to commit client"});
                                     });
                                 }
                                 else{
                                     conn.release();
                                     console.log("db.createClient(): ","successful");
-                                    resolve("Successul");
+                                    resolve({code:0,msg:"Successul"});
                                 }
                             })
                         }
                     })
                 }
             })
-        })
-         pool.query(sql,[values],(error,rows,field)=>{
-            if(error){
-                console.error("db.createClient(): ",error);
-                reject("Could not create client");
+        });
+ 
+    });
+}
+//update client
+exports.updateClient=(data)=>{
+    console.log("updating...",data);
+    return new Promise((resolve,reject)=>{
+        let sql = "update client_tb set phone=?,name=?,email=?,address=?,contact_person=?,contact_email=?,logo=? where id=?";
+        let values = [data.phone,data.name,data.email,data.address,data.contact_person,data.contact_email,data.logo,data.id];
+        pool.query(sql,values,(e,r)=>{
+            if(e){
+                console.error("db.updateClient(): ",e);
+                reject({code:1,msg:"Could not update client data"});
             }
             else{
-                console.log("result:",rows);
-                resolve("Successful");
+                console.log("successful: ",r);
+                resolve({code:0,msg:"Successfully updated Client data"});
+            }
+        })
+    })
+}
+//get list of clients
+exports.getClientList =()=>{
+    return new Promise((resolve,reject)=>{
+        var sql = "select * from client_tb";
+        pool.query(sql,(e,r,f)=>{
+            if(e){
+                console.error("db.getClientList(): ",e);
+                reject({code:1,msg:"Failed to retrieve client list"});
+            }
+            else{
+                resolve({code:0,msg:"Successful",data:r});
+            }
+        })
+    })
+}
+//get single client record
+exports.getClient = (email)=>{
+    return new Promise((resolve,reject)=>{
+        let sql = "select * from client_tb where email=?";
+        
+        pool.query(sql,[email],(e,r,f)=>{
+            if(e){
+                console.error("db.getClientList(): ",e);
+                reject({code:1,msg:"Failed to retrieve client list"});
+            }
+            else{
+                console.log("test2 from getClient: ",r[0]);
+                resolve({code:0,msg:"Successful",data:r[0]});
             }
         })
     })
@@ -245,11 +291,12 @@ exports.signUp =(user)=>{
         // let ref = crypto.randomBytes(4).toString('hex');
         // let db = "space_"+ref;
         bcrypt.hash(user.password,10).then((hash)=>{
-            let values = [user.email,hash,user.token,Date.getTime()]        
+            let now = Date.now();
+            let values = [user.email,hash,user.token,now]        
             pool.query(sql,[values],(err,result)=>{
                 if(err){
                     console.error("db.signUp(): ",err);
-                    reject("Could not signup user");
+                    reject({code:1,msg:"Could not signup user"});
                 }
                 else{
                     this.getUser(result.insertId)
@@ -270,7 +317,7 @@ exports.signUp =(user)=>{
 }
 exports.signIn = (email,password)=>{
     return new Promise((resolve,reject)=>{
-        let sql = "select email,password from user_tb where email=?";
+        let sql = "select * from user_tb where email=?";
         pool.query(sql,[email],(err,row,field)=>{
             if(err){
                 console.error("db.signIn(): ",err);
@@ -281,8 +328,18 @@ exports.signIn = (email,password)=>{
                     let user = row[0];
                     bcrypt.compare(password,user.password,(err,success)=>{
                         if(err) reject("Signin failed. Check password");
-                        if(success)resolve(user);
-                        reject({error:"Invalid Password"});
+                        if(success){
+                            this.getClient(user.email).then(result=>{
+                                user.detail = result.data;
+                                resolve(user);
+                            })
+                            .catch(e=>{
+                                console.log("e: ",e);
+                                resolve(user);
+                            })
+                            
+                        }
+                        else reject({error:"Invalid Password"});
                     });
                 }
                 else{
@@ -328,19 +385,25 @@ exports.getUserWithEmail = (email)=>{
     })
    
 }
-exports.saveToken = (token,user)=>{
+exports.saveToken = (token,email)=>{
     return new Promise((resolve,reject)=>{
-        pool.query("update user_tb set token=? where email=?",[token,user.email],(e,r)=>{
+        pool.query("update user_tb set token=? where email=?",[token,email],(e,r)=>{
             if(e){
                 console.error("db.saveToken(): ",e);
                 reject("Could not save token");
             }
             else{
-                this.getUserWithEmail(user.email)
-                .then(user=>{
-                    resolve(user);
-                })
-                
+                // this.getUserWithEmail(email)
+                // .then(user=>{
+                //     this.getClient(user.id).then(r=>{
+                //         user.detail = r;
+                //         resolve(user);
+                //     }).catch(e=>{
+                //         resolve(user);
+                //     })
+                    
+                // })
+                resolve("Successful");
             }
         })
     })
@@ -357,4 +420,35 @@ exports.getCustomers = ()=>{
         console.log("getting customers...");
         resolve("successful");
     });
+}
+
+//rolses
+exports.createRole = (data)=>{
+    return new Promise((resolve,reject)=>{
+        let sql = "insert into roles_tb (name,permission) values (?)";
+        let values = [data.name,data.permission];
+        pool.query(sql,[values],(e,r)=>{
+            if(e){
+                console.error("db.createRole(): ",e);
+                reject({code:1,msg:"Could not create role"});
+            }
+            else{
+                resolve({code:0,msg:"Successfully created role"});
+            }
+        })
+    })
+}
+
+exports.getRoles = ()=>{
+    return new Promise((resolve,reject)=>{
+        pool.query("select * from roles_tb",(e,r,f)=>{
+            if(e){
+                console.error("db.getRoles(): ",e);
+                reject({code:1,msg:"Could not retrieve the list of roles"});
+            }
+            else{
+                resolve({code:0,msg:"Successfully",data:r});
+            }
+        });
+    })
 }

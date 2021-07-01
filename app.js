@@ -24,16 +24,17 @@ app.get("/", (req, res, next) => {
   res.status(200).json("Cleaford Running");
 });
 
+
 const authenticateToken=(req,res,next)=>{
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(" ")[1];
   
   if(token == null) return res.sendStatus(401);
   else{
-      jwt.verify(token,process.env.ACCESS_TOKEN_SECRET,(err,user)=>{
+      jwt.verify(token,process.env.ACCESS_TOKEN_SECRET,(err,cred)=>{
           if(err) return res.sendStatus(403);
           else{
-              req.user = user;
+              req.email = cred.email;
               next();
           }
       })
@@ -62,7 +63,89 @@ app.post("/initialize",authenticateToken,(req,res)=>{
   })
 })
 
+//create client record
+app.post("/client",authenticateToken,(req,res)=>{
+  let data = {name:req.body.company_name,address:req.body.address,email:req.body.email,phone:req.body.phone,contact_person:req.body.contact_person,contact_email:req.body.contact_email,logo:req.body.logo};
+  if(req.body.user == 0){
+    let randomPass = db.generateRandomPassword(8);
+    console.log("random: ",randomPass);
+    let cred = {email:data.email};
+    let token = jwt.sign(cred,process.env.REFRESH_TOKEN_SECRET);
+    cred.token = token;
+    cred.password = randomPass;
+    db.signUp(cred).then(response=>{
+      db.createClientSpace(cred.email).then(response=>{
+        db.createClient(data)
+        .then(result=>{
+          if(result.code == 0){
+            db.getClientList().then(response=>{
+              res.status(201).json(response);
+            })
+          }
+          else{
+            res.status(200).json(result);
+          }
+        }).catch(e=>{
+          res.status(200).json(e);
+        })
+      }).catch(e=>{
+        res.status(200).json(e);
+      })
+      
+    }).catch(e=>{
+      res.status(200).json(e);
+    })
+  }
+  else{
+    db.createClient(data).then(response=>{
+      res.status(200).json(response);
+    }).catch(e=>{
+      res.status(200).json(e);
+    })
+  }
+})
 
+//update client record
+app.put("/client",authenticateToken,(req,res)=>{
+  let data = {id:req.body.id,name:req.body.company_name,address:req.body.address,email:req.body.email,phone:req.body.phone,contact_person:req.body.contact_person,contact_email:req.body.contact_email,logo:req.body.logo};
+  db.updateClient(data)
+  .then(result=>{
+    if(req.body.user ==0){
+      db.getClientList().then(clients=>{
+        result.data = clients;
+        console.log("result: ",result);
+        res.status(201).json(result);
+      }).catch(err=>{
+        res.status(201).json(result);
+      })
+    }
+    else{
+      db.getClient(id)
+    .then(client=>{
+      result.data = client;
+      res.status(201).json(result);
+    })
+    .catch(err=>{
+      res.status(500).json(err);
+    })
+  }
+    
+  })
+  .catch(err=>{
+    res.status(500).json(err);
+  })
+})
+//getclients
+app.get("/clients",authenticateToken,(req,res)=>{
+  db.getClientList()
+  .then(result=>{
+   res.status(200).json(result);
+   
+  })
+  .catch(err=>{
+    res.status(200).json(err);
+  })
+})
 //get status
 app.get("/status", (req, res) => {
   db.getStata()
@@ -230,4 +313,16 @@ app.post("/user", (req, result) => {
       }
     }
   });
+
+  //roles
+  app.get("/roles",authenticateToken,(req,res)=>{
+    db.getRoles().then(result=>res.status(200).json(result)).catch(err=>{
+      res.status(200).json(err)
+    })
+  });
+  app.post("/role",authenticateToken,(req,res)=>{
+    db.createRole({name:req.body.name,permission:req.body.permission})
+    .then(result=>res.status(201).json(result))
+    .catch(err=>res.status(200).json(err));
+  })
 module.exports = app;

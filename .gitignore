@@ -1,3 +1,7 @@
 node_modules
 controllers/config.json
 requests.rest
+db.sql
+server.js
+authServer.js
+reset_db.sh
