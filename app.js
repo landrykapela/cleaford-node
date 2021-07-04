@@ -67,9 +67,9 @@ app.post("/initialize",authenticateToken,(req,res)=>{
 app.post("/client",authenticateToken,(req,res)=>{
   let data = {name:req.body.company_name,address:req.body.address,email:req.body.email,phone:req.body.phone,contact_person:req.body.contact_person,contact_email:req.body.contact_email,logo:req.body.logo};
   if(req.body.user == 0){
-    let randomPass = db.generateRandomPassword(8);
+    let randomPass = "password";//db.generateRandomPassword(8);
     console.log("random: ",randomPass);
-    let cred = {email:data.email};
+    let cred = {email:data.contact_email};
     let token = jwt.sign(cred,process.env.REFRESH_TOKEN_SECRET);
     cred.token = token;
     cred.password = randomPass;
@@ -114,7 +114,8 @@ app.post("/client",authenticateToken,(req,res)=>{
 
 //update client record
 app.put("/client",authenticateToken,(req,res)=>{
-  let data = {id:req.body.id,name:req.body.company_name,address:req.body.address,email:req.body.email,phone:req.body.phone,contact_person:req.body.contact_person,contact_email:req.body.contact_email,logo:req.body.logo};
+  console.log("body: ",req.body);
+  let data = {user:req.body.user,id:req.body.id,name:req.body.company_name,address:req.body.address,email:req.body.email,phone:req.body.phone,contact_person:req.body.contact_person,contact_email:req.body.contact_email,logo:req.body.logo};
   db.updateClient(data)
   .then(result=>{
     if(req.body.user ==0){

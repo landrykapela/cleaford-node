@@ -223,18 +223,43 @@ exports.createClient = (data)=>{
 exports.updateClient=(data)=>{
     console.log("updating...",data);
     return new Promise((resolve,reject)=>{
-        let sql = "update client_tb set phone=?,name=?,email=?,address=?,contact_person=?,contact_email=?,logo=? where id=?";
-        let values = [data.phone,data.name,data.email,data.address,data.contact_person,data.contact_email,data.logo,data.id];
-        pool.query(sql,values,(e,r)=>{
-            if(e){
-                console.error("db.updateClient(): ",e);
-                reject({code:1,msg:"Could not update client data"});
-            }
-            else{
-                console.log("successful: ",r);
-                resolve({code:0,msg:"Successfully updated Client data"});
+        this.getClientById(data.id).then(rs=>{
+            if(rs.code == 0){
+                let login_email = rs.data.contact_email;
+                if(login_email != data.contact_email){
+                    pool.query("update user_tb set email=? where email=?",[data.contact_email,login_email],(e,r)=>{
+                        if(e){
+                            console.error("db.updateClient(): ",e);
+                        }
+                        else{
+                            let sql = "update client_tb set phone=?,name=?,email=?,address=?,contact_person=?,contact_email=?,logo=? where id=?";
+                            let values = [data.phone,data.name,data.email,data.address,data.contact_person,data.contact_email,data.logo,data.id];
+                            pool.query(sql,values,(e,r)=>{
+                                if(e){
+                                    console.error("db.updateClient(): ",e);
+                                    reject({code:1,msg:"Could not update client data"});
+                                }
+                                else{
+                                    if(data.user && data.user ==0){
+                                        this.getClientList().then(clients=>{
+                                            resolve({code:0,msg:"Successfully updated Client data",data:clients});
+                                        })
+                                    }
+                                    else{
+                                        this.getClientById(data.id).then(client=>{
+                                            resolve({code:0,msg:"Successfully updated Client data",data:client});
+                                        })
+                                        
+                                    }
+                                    
+                                }
+                            })
+                        }
+                    })
+                }
             }
         })
+       
     })
 }
 //get list of clients
@@ -255,7 +280,7 @@ exports.getClientList =()=>{
 //get single client record
 exports.getClient = (email)=>{
     return new Promise((resolve,reject)=>{
-        let sql = "select * from client_tb where email=?";
+        let sql = "select * from client_tb where contact_email=?";
         
         pool.query(sql,[email],(e,r,f)=>{
             if(e){
@@ -269,7 +294,22 @@ exports.getClient = (email)=>{
         })
     })
 }
-
+exports.getClientById = (clientId)=>{
+    return new Promise((resolve,reject)=>{
+        let sql = "select * from client_tb where id=?";
+        
+        pool.query(sql,[clientId],(e,r,f)=>{
+            if(e){
+                console.error("db.getClientList(): ",e);
+                reject({code:1,msg:"Failed to retrieve client list"});
+            }
+            else{
+                console.log("test2 from getClient: ",r[0]);
+                resolve({code:0,msg:"Successful",data:r[0]});
+            }
+        })
+    }) 
+}
 //signout
 exports.signout =(email)=>{
     return new Promise((resolve,reject)=>{
