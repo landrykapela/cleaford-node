@@ -465,15 +465,21 @@ exports.getCustomers = ()=>{
 //rolses
 exports.createRole = (data)=>{
     return new Promise((resolve,reject)=>{
-        let sql = "insert into roles_tb (name,permission) values (?)";
-        let values = [data.name,data.permission];
+        let sql = "insert into roles_tb (name,description,permission) values (?)";
+        let values = [data.name,data.description,data.permission];
         pool.query(sql,[values],(e,r)=>{
             if(e){
                 console.error("db.createRole(): ",e);
                 reject({code:1,msg:"Could not create role"});
             }
             else{
-                resolve({code:0,msg:"Successfully created role"});
+                this.getRoles().then(result=>{
+                    resolve({code:0,msg:"Successfully created role",data:result.data});
+                }).catch(e=>{
+                    console.error("db.createRole(): ",e);
+                    resolve({code:0,msg:"Successfully, but could not retrieve roles",data:[]})
+                })
+                
             }
         })
     })

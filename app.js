@@ -324,12 +324,14 @@ app.post("/user", (req, result) => {
 
   //roles
   app.get("/roles",authenticateToken,(req,res)=>{
-    db.getRoles().then(result=>res.status(200).json(result)).catch(err=>{
+    db.getRoles()
+    .then(result=>res.status(200).json(result))
+    .catch(err=>{
       res.status(200).json(err)
     })
   });
   app.post("/role",authenticateToken,(req,res)=>{
-    db.createRole({name:req.body.name,permission:req.body.permission})
+    db.createRole({name:req.body.name,description:req.body.description,permission:req.body.permission})
     .then(result=>res.status(201).json(result))
     .catch(err=>res.status(200).json(err));
   })
