@@ -53,28 +53,28 @@ app.get("/test-connection",authenticateToken,(req,res,next)=>{
 
 //create client db
 app.post("/initialize",authenticateToken,(req,res)=>{
-  db.createClientSpace(req.body.email).then(result=>{
-    console.log("testing...",result);
+  db.createClientSpace(req.body.user_id).then(result=>{
+    console.log("testing...1",result);
     res.status(200).json(result);
   })
   .catch(e=>{
-    console.log("testing...",e);
+    console.log("testing...1err",e);
     res.status(200).json(e);
   })
 })
 
 //create client record
 app.post("/client",authenticateToken,(req,res)=>{
-  let data = {name:req.body.company_name,address:req.body.address,email:req.body.email,phone:req.body.phone,contact_person:req.body.contact_person,contact_email:req.body.contact_email,logo:req.body.logo};
+  let data = {user:req.body.user,name:req.body.company_name,address:req.body.address,email:req.body.email,phone:req.body.phone,contact_person:req.body.contact_person,contact_email:req.body.contact_email,logo:req.body.logo,db:req.body.db};
+  console.log("another test: ",data);
   if(req.body.user == 0){
     let randomPass = "password";//db.generateRandomPassword(8);
-    console.log("random: ",randomPass);
     let cred = {email:data.contact_email};
     let token = jwt.sign(cred,process.env.REFRESH_TOKEN_SECRET);
     cred.token = token;
     cred.password = randomPass;
-    db.signUp(cred).then(response=>{
-      db.createClientSpace(cred.email).then(response=>{
+    db.signUp(data.contact_email,randomPass,token).then(response=>{
+      db.createClientSpace(response.data.id).then(response=>{
         db.createClient(data)
         .then(result=>{
           if(result.code == 0){
@@ -97,18 +97,40 @@ app.post("/client",authenticateToken,(req,res)=>{
     })
   }
   else{
-    db.createClient(data).then(result=>{
-      if(result.code == 0){
-        db.getClient(data.email).then(response=>{
-          res.status(201).json(response);
+    if(data.db){
+      db.createClient(data).then(result=>{
+        if(result.code == 0){
+          db.getClient(data.contact_email).then(response=>{
+            res.status(201).json(response);
+          })
+        }
+        else{
+          res.status(200).json(result);
+        }
+      }).catch(e=>{
+        res.status(200).json(e);
+      })
+    }
+    else{
+      db.createClientSpace(data.user).then(response=>{
+        console.log("csl;",response);
+        db.createClient(data)
+        .then(result=>{
+          if(result.code == 0){
+            db.getClient(data.contact_email).then(response=>{
+              res.status(201).json(response);
+            })
+          }
+          else{
+            res.status(200).json(result);
+          }
+        }).catch(e=>{
+          res.status(200).json(e);
         })
-      }
-      else{
-        res.status(200).json(result);
-      }
-    }).catch(e=>{
-      res.status(200).json(e);
-    })
+      }).catch(e=>{
+        res.status(200).json(e);
+      })
+    }
   }
 })
 
@@ -128,7 +150,7 @@ app.put("/client",authenticateToken,(req,res)=>{
       })
     }
     else{
-      db.getClient(id)
+      db.getClientById(data.id)
     .then(client=>{
       result.data = client;
       res.status(201).json(result);
@@ -339,7 +361,8 @@ app.post("/user", (req, result) => {
   //client roles
   app.get("/client_roles/:user_id",authenticateToken,(req,res)=>{
     db.getClientRoles(req.params.user_id)
-    .then(result=>res.status(200).json(result)).catch(err=>{
+    .then(result=>res.status(200).json(result))
+    .catch(err=>{
       res.status(200).json(err);
     })
     })
@@ -347,7 +370,7 @@ app.post("/user", (req, result) => {
   app.post("/client_roles/:user_id",authenticateToken,(req,res)=>{
     let data = {user_id:req.params.user_id,name:req.body.name,description:req.body.description,level:req.body.level}
     db.createClientRole(data)
-    .then(res=>res.status(200).json()).catch(err=>{
+    .then(result=>res.status(200).json(result)).catch(err=>{
       res.status(200).json(err);
     })
   })

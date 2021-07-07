@@ -34,7 +34,7 @@ app.post("/signin",(req,res)=>{
         let token = generateAccessToken({email:user.email});
         let refreshToken = jwt.sign({email:user.email},process.env.REFRESH_TOKEN_SECRET);
         db.saveToken(refreshToken,user.email).then(result=>{
-            u.accessToken = token;
+            u.data.accessToken = token;
             res.status(200).json(u);
         }).catch(e=>{
             res.status(200).json(e)
@@ -48,12 +48,9 @@ app.post("/signin",(req,res)=>{
 })
 
 app.post("/signup",(req,res)=>{
-    let cred = {email:req.body.email};
-    let token = generateAccessToken(cred);
-    let refreshToken = jwt.sign(cred,process.env.REFRESH_TOKEN_SECRET);
-    cred.token = refreshToken;
-    cred.password = req.body.password;
-    db.signUp(cred).then(result=>{
+    let token = generateAccessToken({email:req.body.email});
+    let refreshToken = jwt.sign({email:req.body.email},process.env.REFRESH_TOKEN_SECRET);
+    db.signUp(req.body.email,req.body.password,refreshToken).then(result=>{
         result.accessToken = token;
         res.status(201).json(result);
     })
