@@ -335,4 +335,20 @@ app.post("/user", (req, result) => {
     .then(result=>res.status(201).json(result))
     .catch(err=>res.status(200).json(err));
   })
+
+  //client roles
+  app.get("/client_roles/:user_id",authenticateToken,(req,res)=>{
+    db.getClientRoles(req.params.user_id)
+    .then(result=>res.status(200).json(result)).catch(err=>{
+      res.status(200).json(err);
+    })
+    })
+ 
+  app.post("/client_roles/:user_id",authenticateToken,(req,res)=>{
+    let data = {user_id:req.params.user_id,name:req.body.name,description:req.body.description,level:req.body.level}
+    db.createClientRole(data)
+    .then(res=>res.status(200).json()).catch(err=>{
+      res.status(200).json(err);
+    })
+  })
 module.exports = app;

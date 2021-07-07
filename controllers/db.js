@@ -399,12 +399,13 @@ exports.getUser = (userId)=>{
         pool.query("select * from user_tb where id=?",[userId],(e,r,f)=>{
             if(e){
                 console.error("db.getUser(): ",e);
-                reject("Could not retrieve user details");
+                reject({code:1,msg:"Could not retrieve user details",error:e});
             }
             else{
                 if(r.length > 0){
-                    resolve(r[0]);
+                    resolve({code:0,msg:"Successful",data:r[0]});
                 }
+                else reject({code:1,msg:"Could not retrieve user details",error:"User does not exist"});
             }
         })
     })
@@ -414,12 +415,13 @@ exports.getUserWithEmail = (email)=>{
         pool.query("select * from user_tb where email=?",[email],(e,r,f)=>{
             if(e){
                 console.error("db.getUser(): ",e);
-                reject("Could not retrieve user details");
+                reject({code:1,msg:"Could not retrieve user details",error:e});
             }
             else{
                 if(r.length > 0){
-                    resolve(r[0]);
+                    resolve({code:0,msg:"Successful",data:r[0]});
                 }
+                else reject({code:1,msg:"Could not retrieve user details",error:"User does not exist"});
             }
         });
     })
@@ -496,5 +498,104 @@ exports.getRoles = ()=>{
                 resolve({code:0,msg:"Successfully",data:r});
             }
         });
+    })
+}
+//get client roles
+exports.getClientRoles = (user_id)=>{
+    return new Promise((resolve,reject)=>{
+        this.getUser(user_id).then(result=>{
+            let user = result.data;
+            var pool = this.getClientPool(user);
+            var sql = "select * from roles order by level asc";
+            pool.query(sql,(e,r)=>{
+                if(e){
+                    console.error("db.getClientRoles(): ",e);
+                    reject({code:1,msg:"Could not retrieve client roles",error:e});
+                }
+                else{
+                    console.log("success: ",r);
+                    resolve({code:0,msg:"Successful",data:r})
+                }
+            })
+        })
+        .catch(e=>{
+            reject(e)
+        })
+    });
+}
+//create client role
+exports.createClientRole = (data)=>{
+    console.log("my data; ",data);
+    return new Promise((resolve,reject)=>{
+        this.getUser(data.user_id)
+        .then(result=>{
+            let user = result.data;
+            if(user.db.includes("space_")){
+                var clientPool = this.getClientPool(user);
+                clientPool.getConnection((er,con)=>{
+                    if(er){
+                        con.rollback(()=>{
+                            con.release();
+                            console.error("createClientSpace(): ",err);
+                            reject({code:1,msg:"Could not get a connection to client space",error:er});
+                        })
+                    }
+                    else{
+                        let sql = "create table if not exists roles(id int(2) auto_increment primary key, name varchar(32) unique not null, description varchar(255),level int(2) not null)";
+                        con.query(sql,(e,r)=>{
+                            if(e){
+                                console.error("db.createClientRole(): ",e);
+                                con.rollback(()=>{
+                                    con.release();
+                                    reject({code:1,msg:"Could not create a role table in client space",error:e});
+                                })
+                            }
+                            else{
+                                sql = "insert into roles(name,description,level) values (?) on duplicate key update description=values(description),level=values(level)";
+                                let values = [data.name,data.description,data.level];
+                                con.query(sql,[values],(e,r)=>{
+                                    if(e){
+                                        con.rollback(()=>{
+                                            console.error("db.createClientRole(): ",e);
+                                            con.release();
+                                            reject({code:1,msg:"Could not a add role",error:e});
+                               
+                                        })
+                                    }
+                                    else{
+                                        con.commit((e)=>{
+                                            if(e){
+                                                console.error("db.createClientRole(): ",e);
+                                                con.rollback(()=>{
+                                                    con.release();
+                                                    reject({code:1,msg:"Could not complete operation",error:e});
+                               
+                                                })
+                                            }
+                                            else{
+                                                con.release();
+                                                this.getClientRoles(data.user_id)
+                                                    .then(result=>{
+                                                        resolve(result);
+                                                    })
+                                                    .catch(err=>{
+                                                        reject(err)
+                                                    })
+                                            }
+                                        })
+                                        
+                                    }
+                                })
+                            }
+                        })
+                    }
+                })
+            }
+           
+        })
+        .catch(er=>{
+            console.error("db.createClientRole(): ",er);
+            reject({code:1,msg:"Could not get user",error:er});
+        })
     })
 }
