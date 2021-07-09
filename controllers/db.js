@@ -46,6 +46,28 @@ const saveImage = (encodedImage)=>{
     
     
 }
+
+//update user imiage
+exports.updateUserImage = (user_id,image)=>{
+    return new Promise((resolve,reject)=>{
+        let sql = "update user_tb set avatar = ? where id=?";
+        pool.query(sql,[image,user_id],(e,r)=>{
+            if(e){
+                console.error("db.updateUserImage(): ",e);
+                reject({code:1,msg:"Could not upload image",error:e});
+            }
+            else{
+                this.getUser(user_id).then(result=>{
+                    resolve({code:0,msg:"Successful",data:result.data});
+                }).catch(e=>{
+                    resolve({code:0,msg:"Successful",data:null});
+                })
+                
+            }
+        })
+    })
+   
+}
 //generate random Password
 exports.generateRandomPassword = (length)=>{
     let result = "";

@@ -16,10 +16,10 @@ app.use("/",(req, res, next) => {
   );
   next();
 });
-app.use(express.json())
-app.use(bodyParser.json());
-app.use(bodyParser.urlencoded({ extended: false }));
-app.use(bodyParser({limit:'50mb'}));
+app.use(express.json({limit:'50mb'}))
+// app.use(bodyParser.json());
+app.use(express.urlencoded({ extended: false,limit:'50mb' }));
+// app.use(bodyParser({limit:'50mb'}));
 app.get("/", (req, res, next) => {
   console.log("Hello, Welcome to Cleaford App");
 
@@ -145,7 +145,7 @@ app.put("/client",authenticateToken,(req,res)=>{
       res.status(201).json(result)
     })
     .catch(err=>{
-      res.status(500).json(err);
+      res.status(200).json(err);
     })
 })
 //getclients
@@ -241,6 +241,20 @@ app.post("/user", (req, result) => {
         });
     });
   });
+
+//update user image
+  app.put("/user/image/:userid", (req, res) => {
+    let uid = req.params.userid;
+    let image = req.body.image_file;
+    db.updateUserImage(uid,image)
+    .then(result=>{
+      res.status(200).json(result);
+    })
+    .catch(e=>{
+      res.json(e);
+    })
+  });
+
   //reset user password
   app.get("/reset_password/:email", (req, res) => {
     let email = req.params.email;
@@ -286,47 +300,7 @@ app.post("/user", (req, result) => {
     
    
   })
-  app.patch("/user/:userid", (req, res) => {
-    let uid = req.params.userid;
-    let body = req.body;
-  
-    if (body.password !== undefined) {
-      let password = body.password;
-      bcrypt.hash(password, 10).then((hash) => {
-        db.updatePassword(hash, uid)
-          .then((response) => {
-            delete body.password;
-            body.id = uid;
-            if (Object.keys(body).length > 1) {
-              db.updateUser(body)
-                .then((response) => {
-                  res.status(201).json({ response });
-                })
-                .catch((error) => {
-                  res.status(200).json({ error });
-                });
-            } else res.status(200).json({ response: response });
-          })
-          .catch((error) => {
-            res.status(200).json({ error });
-          });
-      });
-    } else {
-      body.id = uid;
-      if (Object.keys(body).length > 1) {
-        db.updateUser(body)
-          .then((response) => {
-            res.status(201).json({ response });
-          })
-          .catch((error) => {
-            res.status(200).json({ error });
-          });
-      } else {
-        res.status(200).json({ response: "No update to make" });
-      }
-    }
-  });
-
+ 
   //roles
   app.get("/roles",authenticateToken,(req,res)=>{
     db.getRoles()
