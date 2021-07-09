@@ -2,6 +2,7 @@ const mysql = require("mysql");
 const config = require("./config.json");
 const bcrypt = require("bcrypt");
 require("dotenv").config();
+const fs = require('fs');
 
 
 //mysql pool
@@ -26,6 +27,25 @@ const randomString = (length)=>{
     return result;
 }
 
+//save base64 to file
+const saveImage = (encodedImage)=>{
+    
+    var matches = encodedImage.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/),
+    response = {};
+    
+    if (matches.length !== 3) {
+        return {code:1,msg:"Invalid image"}
+    }
+    
+    response.type = matches[1];
+    response.data = new Buffer(matches[2], 'base64');
+    
+    // var path "/var/"
+
+    return response;
+    
+    
+}
 //generate random Password
 exports.generateRandomPassword = (length)=>{
     let result = "";
@@ -187,8 +207,8 @@ exports.createClient = (data)=>{
                     // if(data.user === 0){
                     //     // this.signUp()
                     // }
-                    var sql = "insert into client_tb (status,logo,name,address,email,phone,contact_person,contact_email,date_created) values (?) on duplicate key update status=values(status),logo=values(logo),name=values(name),address=values(address),phone=values(phone),contact_person=values(contact_person)";
-                    let values = [1,data.logo,data.name,data.address,data.email,data.phone,data.contact_person,data.contact_email,Date.now()]
+                    var sql = "insert into client_tb (region,status,logo,name,address,email,phone,contact_person,contact_email,date_created) values (?) on duplicate key update status=values(status),logo=values(logo),name=values(name),address=values(address),phone=values(phone),contact_person=values(contact_person)";
+                    let values = [data.region,1,data.logo,data.name,data.address,data.email,data.phone,data.contact_person,data.contact_email,Date.now()]
                     conn.query(sql,[values],(er,res)=>{
                         if(er){
                             conn.rollback(()=>{
@@ -224,40 +244,45 @@ exports.createClient = (data)=>{
 exports.updateClient=(data)=>{
     console.log("updating...",data);
     return new Promise((resolve,reject)=>{
+        console.log("getting client by id ",data.id);
         this.getClientById(data.id).then(rs=>{
+            console.log("complete search of client");
             if(rs.code == 0){
+                console.log("got client id ",rs.data.id);
                 let login_email = rs.data.contact_email;
                 if(login_email != data.contact_email){
                     pool.query("update user_tb set email=? where email=?",[data.contact_email,login_email],(e,r)=>{
                         if(e){
                             console.error("db.updateClient(): ",e);
                         }
-                        else{
-                            let sql = "update client_tb set phone=?,name=?,email=?,address=?,contact_person=?,contact_email=?,logo=? where id=?";
-                            let values = [data.phone,data.name,data.email,data.address,data.contact_person,data.contact_email,data.logo,data.id];
-                            pool.query(sql,values,(e,r)=>{
-                                if(e){
-                                    console.error("db.updateClient(): ",e);
-                                    reject({code:1,msg:"Could not update client data"});
-                                }
-                                else{
-                                    if(data.user && data.user ==0){
-                                        this.getClientList().then(clients=>{
-                                            resolve({code:0,msg:"Successfully updated Client data",data:clients});
-                                        })
-                                    }
-                                    else{
-                                        this.getClientById(data.id).then(client=>{
-                                            resolve({code:0,msg:"Successfully updated Client data",data:client});
-                                        })
-                                        
-                                    }
-                                    
-                                }
-                            })
-                        }
+                       
                     })
                 }
+                
+                let sql = "update client_tb set region=?,phone=?,name=?,email=?,address=?,contact_person=?,contact_email=?,logo=? where id=?";
+                console.log("sql: ",sql);
+                let values = [data.region,data.phone,data.name,data.email,data.address,data.contact_person,data.contact_email,data.logo,data.id];
+                pool.query(sql,values,(e,r)=>{
+                    if(e){
+                        console.error("db.updateClient(): ",e);
+                        reject({code:1,msg:"Could not update client data"});
+                    }
+                    else{
+                        if(data.user && data.user ==0){
+                            this.getClientList().then(clients=>{
+                                resolve({code:0,msg:"Successfully updated Client data",data:clients.data});
+                            })
+                        }
+                        else{
+                            this.getClientById(data.id).then(client=>{
+                                resolve({code:0,msg:"Successfully updated Client data",data:client.data});
+                            })
+                            
+                        }
+                        
+                    }
+                })
+            
             }
         })
        

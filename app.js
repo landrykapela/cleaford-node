@@ -1,4 +1,5 @@
 const express = require("express");
+const postcodes = require('postcodes-tz');
 const bodyParser = require("body-parser");
 const bcrypt = require("bcrypt");
 const jwt = require('jsonwebtoken');
@@ -65,7 +66,7 @@ app.post("/initialize",authenticateToken,(req,res)=>{
 
 //create client record
 app.post("/client",authenticateToken,(req,res)=>{
-  let data = {user:req.body.user,name:req.body.company_name,address:req.body.address,email:req.body.email,phone:req.body.phone,contact_person:req.body.contact_person,contact_email:req.body.contact_email,logo:req.body.logo,db:req.body.db};
+  let data = {region:req.body.region,user:req.body.user,name:req.body.company_name,address:req.body.address,email:req.body.email,phone:req.body.phone,contact_person:req.body.contact_person,contact_email:req.body.contact_email,logo:req.body.logo,db:req.body.db};
   console.log("another test: ",data);
   if(req.body.user == 0){
     let randomPass = "password";//db.generateRandomPassword(8);
@@ -137,33 +138,14 @@ app.post("/client",authenticateToken,(req,res)=>{
 //update client record
 app.put("/client",authenticateToken,(req,res)=>{
   console.log("body: ",req.body);
-  let data = {user:req.body.user,id:req.body.id,name:req.body.company_name,address:req.body.address,email:req.body.email,phone:req.body.phone,contact_person:req.body.contact_person,contact_email:req.body.contact_email,logo:req.body.logo};
+  let data = {region:req.body.region,user:req.body.user,id:req.body.id,name:req.body.company_name,address:req.body.address,email:req.body.email,phone:req.body.phone,contact_person:req.body.contact_person,contact_email:req.body.contact_email,logo:req.body.logo};
   db.updateClient(data)
   .then(result=>{
-    if(req.body.user ==0){
-      db.getClientList().then(clients=>{
-        result.data = clients;
-        console.log("result: ",result);
-        res.status(201).json(result);
-      }).catch(err=>{
-        res.status(201).json(result);
-      })
-    }
-    else{
-      db.getClientById(data.id)
-    .then(client=>{
-      result.data = client;
-      res.status(201).json(result);
+      res.status(201).json(result)
     })
     .catch(err=>{
       res.status(500).json(err);
     })
-  }
-    
-  })
-  .catch(err=>{
-    res.status(500).json(err);
-  })
 })
 //getclients
 app.get("/clients",authenticateToken,(req,res)=>{
@@ -373,5 +355,11 @@ app.post("/user", (req, result) => {
     .then(result=>res.status(200).json(result)).catch(err=>{
       res.status(200).json(err);
     })
+  })
+
+  //get list of regions
+  app.get("/utils/regions",(req,res)=>{
+    console.log("postcodes: ",postcodes.getCityNames());
+    res.json(postcodes.getCityNames());
   })
 module.exports = app;
