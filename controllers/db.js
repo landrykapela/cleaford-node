@@ -435,6 +435,37 @@ exports.createCustomer=(data)=>{
         
     })
 }
+//update customer
+exports.updateCustomer = (data)=>{
+    return new Promise((resolve,reject)=>{
+        this.getUser(data.user)
+        .then(result=>{
+            let pool = this.getClientPool(result.data);
+            let sql = "update customer_tb set name=?,address=?,country=?,region=?,email=?,phone=?,contact_person=?,contact_email=? where id=?";
+            let values = [data.name,data.address,data.country,data.region,data.email,data.phone,data.contact_person,data.contact_email,data.id];
+            pool.query(sql,values,(e,r)=>{
+                if(e){
+                    console.error("db.updateCustomer(): ",e);
+                    reject({code:1,msg:"Could not update customer record",error:e});
+                }
+                else{
+                    this.getCustomersList(data.user)
+                    .then(result=>{
+                        resolve(result);
+                    })
+                    .catch(err=>{
+                        console.error("db.updateCustomer(): ",err);
+                        reject(err);
+                    })
+                }
+            })
+        })
+        .catch(err=>{
+            console.error("db.updateCustomer(): ",err);
+            reject(err);
+        })
+    })
+}
 //get customer list
 exports.getCustomersList =(userId)=>{
 
@@ -451,7 +482,8 @@ exports.getCustomersList =(userId)=>{
                 else{
                     resolve({code:0,msg:"Successful",data:r});
                 }
-            })
+            });
+            // pool.getConnection().release();
         })
         .catch(e=>{
             console.error("db.getCustomersList(): ",e);

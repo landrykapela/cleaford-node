@@ -166,7 +166,18 @@ app.post("/customer",authenticateToken,(req,res)=>{
     res.status(200).json(e);
   })
 })
-
+//update customer
+app.put("/customer/:customer_id",authenticateToken,(req,res)=>{
+  let customer_id = req.params.customer_id;
+  let data = {id:customer_id,region:req.body.region,user:req.body.user,name:req.body.name,address:req.body.address,email:req.body.email,phone:req.body.phone,contact_person:req.body.contact_person,contact_email:req.body.contact_email,country:req.body.country}; 
+  db.updateCustomer(data)
+    .then(result=>{
+      res.status(201).json(result);
+    })
+    .catch(e=>{
+      res.status(200).json(e);
+    })  
+})
 //get customers
 app.get("/customers/:userid",authenticateToken,(req,res)=>{
   let userid = req.params.userid;
