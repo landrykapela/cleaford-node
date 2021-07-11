@@ -201,8 +201,8 @@ app.get("/status", (req, res) => {
 });
 
 //get customers
-app.get("/customers", (req, res) => {
-  db.getCustomers()
+app.get("/customers/:user_id", (req, res) => {
+  db.getCustomersList(req.params.user_id)
     .then((customers) => {
       res.status(200).json({ customers });
     })
