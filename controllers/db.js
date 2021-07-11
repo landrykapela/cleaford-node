@@ -102,7 +102,6 @@ exports.createClientSpace = (userId)=>{
     this.getUser(userId)
         .then(result=>{
             var user = result.data;
-            console.log("testing..."+user);
                 pool.getConnection((err,connection)=>{
                     connection.beginTransaction((err)=>{
                         if(err){
@@ -229,8 +228,8 @@ exports.createClient = (data)=>{
                     // if(data.user === 0){
                     //     // this.signUp()
                     // }
-                    var sql = "insert into client_tb (region,status,logo,name,address,email,phone,contact_person,contact_email,date_created) values (?) on duplicate key update status=values(status),logo=values(logo),name=values(name),address=values(address),phone=values(phone),contact_person=values(contact_person)";
-                    let values = [data.region,1,data.logo,data.name,data.address,data.email,data.phone,data.contact_person,data.contact_email,Date.now()]
+                    var sql = "insert into client_tb (country,region,status,logo,name,address,email,phone,contact_person,contact_email,date_created) values (?) on duplicate key update status=values(status),logo=values(logo),name=values(name),address=values(address),phone=values(phone),contact_person=values(contact_person),country=values(country),region=values(region)";
+                    let values = [data.country,data.region,1,data.logo,data.name,data.address,data.email,data.phone,data.contact_person,data.contact_email,Date.now()]
                     conn.query(sql,[values],(er,res)=>{
                         if(er){
                             conn.rollback(()=>{
@@ -250,7 +249,6 @@ exports.createClient = (data)=>{
                                 }
                                 else{
                                     conn.release();
-                                    console.log("db.createClient(): ","successful");
                                     resolve({code:0,msg:"Successul"});
                                 }
                             })
@@ -264,13 +262,9 @@ exports.createClient = (data)=>{
 }
 //update client
 exports.updateClient=(data)=>{
-    console.log("updating...",data);
     return new Promise((resolve,reject)=>{
-        console.log("getting client by id ",data.id);
         this.getClientById(data.id).then(rs=>{
-            console.log("complete search of client");
             if(rs.code == 0){
-                console.log("got client id ",rs.data.id);
                 let login_email = rs.data.contact_email;
                 if(login_email != data.contact_email){
                     pool.query("update user_tb set email=? where email=?",[data.contact_email,login_email],(e,r)=>{
@@ -281,9 +275,9 @@ exports.updateClient=(data)=>{
                     })
                 }
                 
-                let sql = "update client_tb set region=?,phone=?,name=?,email=?,address=?,contact_person=?,contact_email=?,logo=? where id=?";
-                console.log("sql: ",sql);
-                let values = [data.region,data.phone,data.name,data.email,data.address,data.contact_person,data.contact_email,data.logo,data.id];
+                let sql = "update client_tb set country=?,region=?,phone=?,name=?,email=?,address=?,contact_person=?,contact_email=?,logo=? where id=?";
+                c
+                let values = [data.country,data.region,data.phone,data.name,data.email,data.address,data.contact_person,data.contact_email,data.logo,data.id];
                 pool.query(sql,values,(e,r)=>{
                     if(e){
                         console.error("db.updateClient(): ",e);
@@ -353,11 +347,117 @@ exports.getClientById = (clientId)=>{
                 reject({code:1,msg:"Failed to retrieve client list"});
             }
             else{
-                console.log("test2 from getClient: ",r[0]);
                 resolve({code:0,msg:"Successful",data:r[0]});
             }
         })
     }) 
+}
+
+//create customer record
+exports.createCustomer=(data)=>{
+    return new Promise((resolve,reject)=>{
+        this.getUser(data.user)
+        .then(result=>{
+            let user = result.data;
+            let pool = this.getClientPool(user);
+            pool.getConnection((er,conn)=>{
+                if(er){
+                    resolve({code:1,msg:"Something went wrong. Please try again later",error:er});
+                }
+                else{
+                    conn.beginTransaction((e)=>{
+                        if(e){
+                            conn.release();
+                            reject({code:1,msg:"Something went wrong. Please try again later",error:e});
+                        }
+                        else{
+                            let sql = "create table if not exists customer_tb (id int(10) auto_increment primary key,name varchar(50) not null, email varchar(255) unique not null,address varchar(255),region varchar(50), country varchar(50),contact_person varchar(50),contact_email varchar(50),phone varchar(15) not null)";
+                            conn.query(sql,(e,r)=>{
+                                if(e){
+                                    conn.rollback((e)=>{
+                                        conn.release();
+                                        console.error("db.createCustomer(): ",e);
+                                        reject({code:1,msg:"Something went wrong. Please try again later",error:e});    
+                                    });
+                                }
+                                else{
+                                    conn.commit((e)=>{
+                                        if(e){
+                                            conn.release();
+                                            console.error("db.createCustomer(): ",e);
+                                            reject({code:1,msg:"Could not create customer",error:e});                                                  
+                                        }
+                                        else{
+
+                                            let sql = "insert into customer_tb (name,address,region,country,email,phone,contact_email,contact_person) values(?) on duplicate key update region=values(region),contact_email=values(contact_email),country=values(country),address=values(address),phone=values(phone),contact_person=values(contact_person)";
+                                            let values = [data.name,data.address,data.region,data.country,data.email,data.phone,data.contact_email,data.contact_person];
+                                            conn.query(sql,[values],(e,r)=>{
+                                                if(e){
+                                                    conn.rollback(error=>{
+                                                        if(error){
+                                                            console.error("db.createCustomer(): ",error);
+                                                            reject({code:1,msg:"Could not create customer",error:error});
+                                                        
+                                                        }
+                                                        else{
+                                                            console.error("db.createCustomer(): ",e);
+                                                            reject({code:1,msg:"Could not create customer",error:e});
+                                                        }
+                                                    })
+                                                }
+                                                else{
+                                                    conn.release();
+                                                    this.getCustomersList(data.user).then(result=>{
+                                                        resolve(result);
+                                                    })
+                                                    .catch(er=>{
+                                                    reject(er);
+                                                    })
+                                                }
+                                            })
+
+                                        }
+                                    })
+                                    
+                                }
+                            })
+                        }
+                    })
+                }
+            })
+                
+        })
+        .catch(e=>{
+            console.error("db.createCustomer(): ",e);
+            reject({code:1,msg:"User was not found.",error:e});
+
+        })
+        
+    })
+}
+//get customer list
+exports.getCustomersList =(userId)=>{
+
+    return new Promise((resolve,reject)=>{
+        this.getUser(userId).then(result=>{
+            let user = result.data;
+            var pool = this.getClientPool(user);
+            let sql = "select * from customer_tb order by name asc";
+            pool.query(sql,(e,r)=>{
+                if(e){
+                    console.error("db.getCustomerList(): ",e);
+                    reject({code:1,msg:"Could not retrieve the list of customers",error:e});
+                }
+                else{
+                    resolve({code:0,msg:"Successful",data:r});
+                }
+            })
+        })
+        .catch(e=>{
+            console.error("db.getCustomersList(): ",e);
+            reject({code:1,msg:"Could not retrieve the list of customers",error:e})
+        })
+    })
 }
 //signout
 exports.signout =(email)=>{
@@ -488,19 +588,6 @@ exports.saveToken = (token,email)=>{
         })
     })
 }
-exports.getCustomers = ()=>{
-    return new Promise((resolve,reject)=>{
-        console.log("getting customers...");
-        resolve("successful");
-    });
-}
-
-exports.getCustomers = ()=>{
-    return new Promise((resolve,reject)=>{
-        console.log("getting customers...");
-        resolve("successful");
-    });
-}
 
 //rolses
 exports.createRole = (data)=>{
@@ -551,7 +638,6 @@ exports.getClientRoles = (user_id)=>{
                     reject({code:1,msg:"Could not retrieve client roles",error:e});
                 }
                 else{
-                    console.log("success: ",r);
                     resolve({code:0,msg:"Successful",data:r})
                 }
             })
@@ -563,7 +649,6 @@ exports.getClientRoles = (user_id)=>{
 }
 //create client role
 exports.createClientRole = (data)=>{
-    console.log("my data; ",data);
     return new Promise((resolve,reject)=>{
         this.getUser(data.user_id)
         .then(result=>{

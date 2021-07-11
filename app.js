@@ -56,19 +56,16 @@ app.get("/test-connection",authenticateToken,(req,res,next)=>{
 //create client db
 app.post("/initialize",authenticateToken,(req,res)=>{
   db.createClientSpace(req.body.user_id).then(result=>{
-    console.log("testing...1",result);
     res.status(200).json(result);
   })
   .catch(e=>{
-    console.log("testing...1err",e);
     res.status(200).json(e);
   })
 })
 
 //create client record
 app.post("/client",authenticateToken,(req,res)=>{
-  let data = {region:req.body.region,user:req.body.user,name:req.body.company_name,address:req.body.address,email:req.body.email,phone:req.body.phone,contact_person:req.body.contact_person,contact_email:req.body.contact_email,logo:req.body.logo,db:req.body.db};
-  console.log("another test: ",data);
+  let data = {country:req.body.country,region:req.body.region,user:req.body.user,name:req.body.company_name,address:req.body.address,email:req.body.email,phone:req.body.phone,contact_person:req.body.contact_person,contact_email:req.body.contact_email,logo:req.body.logo,db:req.body.db};
   if(req.body.user == 0){
     let randomPass = "password";//db.generateRandomPassword(8);
     let cred = {email:data.contact_email};
@@ -115,7 +112,6 @@ app.post("/client",authenticateToken,(req,res)=>{
     }
     else{
       db.createClientSpace(data.user).then(response=>{
-        console.log("csl;",response);
         db.createClient(data)
         .then(result=>{
           if(result.code == 0){
@@ -138,8 +134,7 @@ app.post("/client",authenticateToken,(req,res)=>{
 
 //update client record
 app.put("/client",authenticateToken,(req,res)=>{
-  console.log("body: ",req.body);
-  let data = {region:req.body.region,user:req.body.user,id:req.body.id,name:req.body.company_name,address:req.body.address,email:req.body.email,phone:req.body.phone,contact_person:req.body.contact_person,contact_email:req.body.contact_email,logo:req.body.logo};
+  let data = {country:req.body.country,region:req.body.region,user:req.body.user,id:req.body.id,name:req.body.company_name,address:req.body.address,email:req.body.email,phone:req.body.phone,contact_person:req.body.contact_person,contact_email:req.body.contact_email,logo:req.body.logo};
   db.updateClient(data)
   .then(result=>{
       res.status(201).json(result)
@@ -154,6 +149,30 @@ app.get("/clients",authenticateToken,(req,res)=>{
   .then(result=>{
    res.status(200).json(result);
    
+  })
+  .catch(err=>{
+    res.status(200).json(err);
+  })
+})
+
+//create customer
+app.post("/customer",authenticateToken,(req,res)=>{
+  let data = {region:req.body.region,user:req.body.user,name:req.body.company_name,address:req.body.address,email:req.body.email,phone:req.body.phone,contact_person:req.body.contact_person,contact_email:req.body.contact_email,country:req.body.country,db:req.body.db}; 
+  db.createCustomer(data)
+  .then(result=>{
+    res.status(201).json(result);
+  })
+  .catch(e=>{
+    res.status(200).json(e);
+  })
+})
+
+//get customers
+app.get("/customers/:userid",authenticateToken,(req,res)=>{
+  let userid = req.params.userid;
+  db.getCustomersList(userid)
+  .then(result=>{
+   res.status(200).json(result);
   })
   .catch(err=>{
     res.status(200).json(err);
@@ -334,7 +353,6 @@ app.post("/user", (req, result) => {
 
   //get list of regions
   app.get("/utils/regions",(req,res)=>{
-    console.log("postcodes: ",postcodes.getCityNames());
     res.json(postcodes.getCityNames());
   })
 module.exports = app;
