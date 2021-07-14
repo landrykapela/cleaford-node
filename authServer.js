@@ -31,7 +31,6 @@ app.use((req, res, next) => {
 app.post("/signin",(req,res)=>{
     let user = {email:req.body.email,password:req.body.password};
     db.signIn(user.email,user.password).then(u=>{
-        console.log("signin: ",u);
         let token = generateAccessToken({email:user.email});
         let refreshToken = jwt.sign({email:user.email},process.env.REFRESH_TOKEN_SECRET);
         db.saveToken(refreshToken,user.email).then(result=>{

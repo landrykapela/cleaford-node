@@ -3,6 +3,7 @@ const config = require("./config.json");
 const bcrypt = require("bcrypt");
 require("dotenv").config();
 const fs = require('fs');
+const { join } = require("path");
 
 
 //mysql pool
@@ -276,7 +277,6 @@ exports.updateClient=(data)=>{
                 }
                 
                 let sql = "update client_tb set country=?,region=?,phone=?,name=?,email=?,address=?,contact_person=?,contact_email=?,logo=? where id=?";
-                c
                 let values = [data.country,data.region,data.phone,data.name,data.email,data.address,data.contact_person,data.contact_email,data.logo,data.id];
                 pool.query(sql,values,(e,r)=>{
                     if(e){
@@ -284,9 +284,12 @@ exports.updateClient=(data)=>{
                         reject({code:1,msg:"Could not update client data"});
                     }
                     else{
-                        if(data.user && data.user ==0){
+                        if(data.user == 0){
                             this.getClientList().then(clients=>{
                                 resolve({code:0,msg:"Successfully updated Client data",data:clients.data});
+                            }).catch(e=>{
+                                console.error("db.updateClient(): ",e);
+                                reject(e);
                             })
                         }
                         else{
@@ -332,7 +335,7 @@ exports.getClient = (email)=>{
             else{
                 if(r && r.length > 0)
                 resolve({code:0,msg:"Successful",data:r[0]});
-                else reject({code:1,msg:"No client information"})
+                else reject({code:1,msg:"No client information for email: "+email})
             }
         })
     })
@@ -472,18 +475,34 @@ exports.getCustomersList =(userId)=>{
     return new Promise((resolve,reject)=>{
         this.getUser(userId).then(result=>{
             let user = result.data;
-            var pool = this.getClientPool(user);
-            let sql = "select * from customer_tb order by name asc";
-            pool.query(sql,(e,r)=>{
-                if(e){
-                    console.error("db.getCustomerList(): ",e);
-                    reject({code:1,msg:"Could not retrieve the list of customers",error:e});
-                }
-                else{
-                    resolve({code:0,msg:"Successful",data:r});
-                }
-            });
-            // pool.getConnection().release();
+            if(user.db && user.db.includes("_")){
+                var pool = this.getClientPool(user);
+                let sql = "select * from customer_tb order by name asc";
+                pool.query(sql,(e,r)=>{
+                    if(e){
+                        console.error("db.getCustomerList(): ",e);
+                        reject({code:1,msg:"Could not retrieve the list of customers",error:e});
+                    }
+                    else{
+                        resolve({code:0,msg:"Successful",data:r});
+                    }
+                });
+            }
+           else{
+               this.createClientSpace(userId).then(result=>{
+                   if(result.code == 0){
+                       result.msg = "No customers registered";
+                       result.data = [];
+                       resolve(result);
+                   }
+                   else{
+                       reject(result);
+                   }
+               }).catch(e=>{
+                   console.error("db.getCustomersList(): ",e);
+                   reject(e);
+               })
+           }
         })
         .catch(e=>{
             console.error("db.getCustomersList(): ",e);
