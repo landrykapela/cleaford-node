@@ -527,30 +527,37 @@ exports.signout =(email)=>{
 //signup
 exports.signUp =(email,password,token)=>{
     return new Promise((resolve,reject)=>{
-        let sql = "insert into user_tb(email,password,token,date_created) values (?) on duplicate key update password=values(password),token=values(token),date_created=values(date_created)";
-        // let ref = crypto.randomBytes(4).toString('hex');
-        // let db = "space_"+ref;
-        bcrypt.hash(password,10).then((hash)=>{
-            let now = Date.now();
-            let values = [email,hash,token,now]        
-            pool.query(sql,[values],(err,result)=>{
-                if(err){
-                    console.error("db.signUp(): ",err);
-                    reject({code:1,msg:"Could not signup user"});
-                }
-                else{
-                    this.getUser(result.insertId)
-                    .then(u=>{
-                        resolve(u)
-                    }).catch(e=>{
-                        resolve(user);
+        this.getUserWithEmail(email).then(result=>{
+            if(result.data){
+                reject({code:1,msg:"User already exists. Please go to sign in page"});
+            }
+            else{
+                let sql = "insert into user_tb(email,password,token,date_created) values (?) on duplicate key update password=values(password),token=values(token),date_created=values(date_created)";
+                bcrypt.hash(password,10).then((hash)=>{
+                    let now = Date.now();
+                    let values = [email,hash,token,now]        
+                    pool.query(sql,[values],(err,result)=>{
+                        if(err){
+                            console.error("db.signUp(): ",err);
+                            reject({code:1,msg:"Could not signup user",error:err});
+                        }
+                        else{
+                            this.getUser(result.insertId)
+                            .then(u=>{
+                                resolve(u)
+                            }).catch(e=>{
+                                resolve({code:-1,msg:"Successfully created user. Please go to sign in",error:e});
+                            })
+                            
+                        }
                     })
-                    
-                }
-            })
-        })
-        .catch(e=>{
-            console.error("db.signup(): ",e)
+                })
+                .catch(e=>{
+                    console.error("db.signup(): ",e);
+                    reject({code:1,msg:"Could not signup user",error:e});
+                })
+                
+            }
         })
         
     })

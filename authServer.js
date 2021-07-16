@@ -51,11 +51,11 @@ app.post("/signup",(req,res)=>{
     let token = generateAccessToken({email:req.body.email});
     let refreshToken = jwt.sign({email:req.body.email},process.env.REFRESH_TOKEN_SECRET);
     db.signUp(req.body.email,req.body.password,refreshToken).then(result=>{
-        result.accessToken = token;
+        result.data.accessToken = token;
         res.status(201).json(result);
     })
     .catch(e=>{
-        res.sendStatus(203);
+        res.status(409).json(e);
     })
     
 })
