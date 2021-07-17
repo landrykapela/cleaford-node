@@ -52,20 +52,30 @@ const saveImage = (encodedImage)=>{
 exports.updateUserImage = (user_id,image)=>{
     return new Promise((resolve,reject)=>{
         let sql = "update user_tb set avatar = ? where id=?";
-        pool.query(sql,[image,user_id],(e,r)=>{
+        pool.getConnection((e,con)=>{
             if(e){
                 console.error("db.updateUserImage(): ",e);
                 reject({code:1,msg:"Could not upload image",error:e});
             }
             else{
-                this.getUser(user_id).then(result=>{
-                    resolve({code:0,msg:"Successful",data:result.data});
-                }).catch(e=>{
-                    resolve({code:0,msg:"Successful",data:null});
+                con.query(sql,[image,user_id],(e,r)=>{
+                    if(e){
+                        console.error("db.updateUserImage(): ",e);
+                        reject({code:1,msg:"Could not upload image",error:e});
+                    }
+                    else{
+                        con.release();
+                        this.getUser(user_id).then(result=>{
+                            resolve({code:0,msg:"Successful",data:result.data});
+                        }).catch(e=>{
+                            resolve({code:0,msg:"Successful",data:null});
+                        })
+                        
+                    }
                 })
-                
             }
         })
+        
     })
    
 }
@@ -533,7 +543,8 @@ exports.signUp =(email,password,token)=>{
             }
             else{
                 let sql = "insert into user_tb(email,password,token,date_created) values (?) on duplicate key update password=values(password),token=values(token),date_created=values(date_created)";
-                bcrypt.hash(password,10).then((hash)=>{
+                bcrypt.hash(password,10)
+                .then((hash)=>{
                     let now = Date.now();
                     let values = [email,hash,token,now]        
                     pool.query(sql,[values],(err,result)=>{
@@ -558,6 +569,10 @@ exports.signUp =(email,password,token)=>{
                 })
                 
             }
+        })
+        .catch(e=>{
+            console.log("db.signUp(): ",e);
+            reject({code:1,msg:"Could not retrieve user "+email,error:e});
         })
         
     })
@@ -586,11 +601,11 @@ exports.signIn = (email,password)=>{
                             })
                             
                         }
-                        else reject({error:"Invalid Password"});
+                        else reject({code:1,msg:"Invalid Password"});
                     });
                 }
                 else{
-                    reject({error:"User not found"});
+                    reject({code:1,msg:"User not found"});
                 }
                 
                 
@@ -602,18 +617,28 @@ exports.signIn = (email,password)=>{
 }
 exports.getUser = (userId)=>{
     return new Promise((resolve,reject)=>{
-        pool.query("select * from user_tb where id=?",[userId],(e,r,f)=>{
+        pool.getConnection((e,con)=>{
             if(e){
                 console.error("db.getUser(): ",e);
-                reject({code:1,msg:"Could not retrieve user details",error:e});
+                reject({code:1,msg:"Failed to connect to service",error:e});
             }
             else{
-                if(r.length > 0){
-                    resolve({code:0,msg:"Successful",data:r[0]});
-                }
-                else reject({code:1,msg:"Could not retrieve user details",error:"User does not exist"});
+                con.query("select * from user_tb where id=?",[userId],(e,r,f)=>{
+                    if(e){
+                        console.error("db.getUser(): ",e);
+                        reject({code:1,msg:"Could not retrieve user details",error:e});
+                    }
+                    else{
+                        if(r.length > 0){
+                            resolve({code:0,msg:"Successful",data:r[0]});
+                        }
+                        else reject({code:1,msg:"User does not exist"});
+                    }
+                    con.release();
+                })
             }
         })
+        
     })
 }
 exports.getUserWithEmail = (email)=>{
@@ -627,7 +652,7 @@ exports.getUserWithEmail = (email)=>{
                 if(r.length > 0){
                     resolve({code:0,msg:"Successful",data:r[0]});
                 }
-                else reject({code:1,msg:"Could not retrieve user details",error:"User does not exist"});
+                else resolve({code:1,msg:"Could not retrieve user details",error:"User does not exist"});
             }
         });
     })
@@ -655,7 +680,7 @@ exports.createRole = (data)=>{
         pool.query(sql,[values],(e,r)=>{
             if(e){
                 console.error("db.createRole(): ",e);
-                reject({code:1,msg:"Could not create role"});
+                reject({code:1,msg:"Could not create role",error:e});
             }
             else{
                 this.getRoles().then(result=>{
@@ -689,7 +714,7 @@ exports.getClientRoles = (user_id)=>{
         this.getUser(user_id).then(result=>{
             let user = result.data;
             var pool = this.getClientPool(user);
-            var sql = "select * from roles order by level asc";
+            var sql = "select * from roles_tb order by level asc";
             pool.query(sql,(e,r)=>{
                 if(e){
                     console.error("db.getClientRoles(): ",e);
@@ -701,7 +726,7 @@ exports.getClientRoles = (user_id)=>{
             })
         })
         .catch(e=>{
-            reject(e)
+            reject({code:1,msg:"Could not retrieve client roles",error:e})
         })
     });
 }
