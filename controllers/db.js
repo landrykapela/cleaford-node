@@ -1067,3 +1067,28 @@ exports.updateClientRole = (data)=>{
         })
     })
 }
+
+//get payment terms
+exports.getPaymentTerms = ()=>{
+    return new Promise((resolve,reject)=>{
+        pool.getConnection((e,con)=>{
+            if(e){
+                console.error(getTimeStamp()+" db.getpaymentTerms(): ",e);
+                reject({code:1,msg:"Could not establish connection to service",error:e});
+            }
+            else{
+                con.query("select * from payment_terms order by id asc",(e,r)=>{
+                    if(e){
+                        con.release();
+                        console.error(getTimeStamp()+" db.getpaymentTerms(): ",e);
+                        reject({code:1,msg:"Could not retrieve payment terms",error:e});
+                    }
+                    else{
+                        con.release();
+                        resolve({code:0,msg:"success",data:r});
+                    }
+                })
+            }
+        })
+    })
+}
