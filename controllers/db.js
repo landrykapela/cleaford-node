@@ -28,6 +28,11 @@ const randomString = (length)=>{
     return result;
 }
 
+//gettime stamp
+const getTimeStamp =()=>{
+    return new Date(parseInt(Date.now()));
+}
+
 //save base64 to file
 const saveImage = (encodedImage)=>{
     
@@ -714,7 +719,7 @@ exports.getClientRoles = (user_id)=>{
         this.getUser(user_id).then(result=>{
             let user = result.data;
             var pool = this.getClientPool(user);
-            var sql = "select * from roles_tb order by level asc";
+            var sql = "select * from roles order by level asc";
             pool.query(sql,(e,r)=>{
                 if(e){
                     console.error("db.getClientRoles(): ",e);
@@ -802,6 +807,95 @@ exports.createClientRole = (data)=>{
         .catch(er=>{
             console.error("db.createClientRole(): ",er);
             reject({code:1,msg:"Could not get user",error:er});
+        })
+    })
+}
+//delete client Role
+exports.deleteClientRole = (user_id,role_id)=>{
+    return new Promise((resolve,reject)=>{
+        pool.getConnection((err,con)=>{
+            if(err){
+                con.release();
+                console.error(getTimeStamp()+" db.deleteClientRole(): ",err);
+                reject({code:1,msg:"Could not connect to service",error:err});
+            }
+            else{
+                this.getUser(user_id).then(result=>{
+                    con.release();
+                    if(result.data){
+                        var clientPool = this.getClientPool(result.data);
+                        clientPool.getConnection((e,conn)=>{
+                            if(e){
+                                conn.release();
+                                console.error(getTimeStamp()+" db.deleteClientRole(): ",e);
+                                reject({code:1,msg:"Could not connect to client space",error:e});
+                            }
+                            else{
+                                conn.query("delete from roles where id=?",[role_id],(e,r)=>{
+                                    if(e){
+                                        conn.release();
+                                        console.error(getTimeStamp()+" db.deleteClientRole(): ",e);
+                                        reject({code:1,msg:"Could not connect to service",error:e});
+                                    }
+                                    else{
+                                        conn.release();
+                                        this.getClientRoles(user_id).then(result=>{
+                                            resolve(result);
+                                        }).catch(err=>{
+                                            reject(err);
+                                        })
+                                    }
+                                })
+                            }
+                        })
+                    }
+                    
+                }).catch(err=>{
+                    con.release();
+                    console.error(getTimeStamp()+" db.deleteClientRole(): ",err);
+                    reject({code:1,msg:"Could not connect to service",error:err});
+                })
+            }
+        })
+    })
+}
+//update client Role
+exports.updateClientRole = (data)=>{
+    console.log("update: ",data);
+    return new Promise((resolve,reject)=>{
+        this.getUser(data.user).then(result=>{
+            if(result.data){
+                var clientPool = this.getClientPool(result.data);
+                clientPool.getConnection((e,conn)=>{
+                    if(e){
+                        conn.release();
+                        console.error(getTimeStamp()+" db.deleteClientRole(): ",e);
+                        reject({code:1,msg:"Could not connect to client space",error:e});
+                    }
+                    else{
+                        conn.query("update roles set name=?, description=?, level=? where id=?",[data.name,data.description,data.level,data.id],(e,r)=>{
+                            if(e){
+                                conn.release();
+                                console.error(getTimeStamp()+" db.deleteClientRole(): ",e);
+                                reject({code:1,msg:"Could not connect to service",error:e});
+                            }
+                            else{
+                                conn.release();
+                                this.getClientRoles(data.user).then(result=>{
+                                    resolve(result);
+                                }).catch(err=>{
+                                    reject(err);
+                                })
+                            }
+                        })
+                    }
+                })
+            }
+            
+        })
+        .catch(err=>{
+            console.error(getTimeStamp()+" db.updateClientRole(): ",err);
+            reject({code:1,msg:"Could not retrieve user",error:err});
         })
     })
 }

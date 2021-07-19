@@ -362,6 +362,25 @@ app.post("/user", (req, result) => {
     })
   })
 
+  app.put("/client_roles/:user_id/:role_id",authenticateToken,(req,res)=>{
+    let role_id = req.params.role_id;
+    let user_id = req.params.user_id; 
+    let data = {user:user_id,id:role_id,name:req.body.name,description:req.body.description,level:req.body.level};
+    db.updateClientRole(data)
+    .then(result=>res.status(200).json(result))
+    .catch(err=>{
+      res.status(200).json(err);
+    })
+  })
+  app.delete("/client_roles/:user_id/:role_id",authenticateToken,(req,res)=>{
+    let role_id = req.params.role_id;
+    let user_id = req.params.user_id; 
+    db.deleteClientRole(user_id,role_id)
+    .then(result=>res.status(200).json(result))
+    .catch(err=>{
+      res.status(200).json(err);
+    })
+  })
   //get list of regions
   app.get("/utils/regions",(req,res)=>{
     res.json(postcodes.getCityNames());
