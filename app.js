@@ -352,7 +352,6 @@ app.post("/user", (req, result) => {
     .then(result=>res.status(201).json(result))
     .catch(err=>res.status(200).json(err));
   })
-
   //delete role
   app.delete("/role/:roleId",authenticateToken,(req,res)=>{
     db.deleteRole(req.params.roleId)
@@ -396,6 +395,46 @@ app.post("/user", (req, result) => {
     .then(result=>res.status(200).json(result))
     .catch(err=>{
       res.status(200).json(err);
+    })
+  })
+
+  //get features
+  app.get("/features",authenticateToken,(req,res)=>{
+    db.getFeatures().then(result=>{
+      res.status(200).json(result);
+    })
+    .catch(err=>{
+      res.status(200).json(err);
+    })
+  })
+
+  //create feature
+  app.post("/features",authenticateToken,(req,res)=>{
+    let data = {name:req.body.name,description:req.body.description,label:req.body.label,parent:req.body.parent};
+    db.createFeature(data).then(result=>{
+      res.status(200).json(result)
+    }).catch(er=>{
+      res.status(200).json(er);
+    })
+  })
+
+  //update feature
+  app.put("/features/:feature_id",authenticateToken,(req,res)=>{
+    let data = {id:req.params.feature_id,name:req.body.name,description:req.body.description,label:req.body.label};
+    db.updateFeature(data).then(result=>{
+      res.status(201).json(result);
+    }).catch(er=>{
+      res.status(200).json(er);
+    })
+  })
+
+  //delete feature
+  app.delete("/features/:feature_id",authenticateToken,(req,res)=>{
+    db.deleteFeature(req.params.feature_id).then(result=>{
+      res.status(200).json(result)
+    })
+    .catch(e=>{
+      res.status(200).json(e);
     })
   })
   //get list of regions

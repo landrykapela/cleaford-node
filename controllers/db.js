@@ -678,6 +678,120 @@ exports.saveToken = (token,email)=>{
 }
 
 //rolses
+exports.createFeature = (data)=>{
+    return new Promise((resolve,reject)=>{
+        let sql = "insert into features_tb (name,description,label,parent) values (?) on duplicate key update name=values(name), description=values(description),parent=values(parent)";
+        let values = [data.name,data.description,data.label,data.parent];
+        pool.getConnection((e,con)=>{
+            if(e){
+                console.error("db.createFeature(): ",e);
+                reject({code:1,msg:"Could not get connection to service",error:e});
+            }
+            else{
+                con.query(sql,[values],(e,r)=>{
+                    if(e){
+                        con.release();
+                        console.error("db.createFeature(): ",e);
+                        reject({code:1,msg:"Could not create feature",error:e});
+                    }
+                    else{
+                        con.release();
+                        this.getFeatures().then(result=>{
+                            resolve({code:0,msg:"Successfully created feature",data:result.data});
+                        }).catch(e=>{
+                            console.error("db.createFeature(): ",e);
+                            resolve({code:0,msg:"Successfully, but could not retrieve features",data:[]})
+                        })
+                        
+                    }
+                })
+            }
+        })
+       
+    })
+}
+//delete features
+exports.deleteFeature=(featureId)=>{
+    return new Promise((resolve,reject)=>{
+        pool.getConnection((e,con)=>{
+            if(e){
+                console.error(getTimeStamp()+" db.deleteFeature(): ",e);
+                reject({code:1,msg:"Could not establish connection to service",error:e});
+            }
+            else{
+                con.query("delete from features_tb where id=?",[featureId],(e,r)=>{
+                    if(e){
+                        console.error(getTimeStamp()+" db.deleteFeature(): ",e);
+                        reject({code:1,msg:"Could not delete feature",error:e});
+                    }
+                    else{
+                        con.release();
+                        this.getFeatures().then(result=>{
+                            resolve(result);
+                        }).catch(er=>{
+                            console.error(getTimeStamp()+" db.deleteFeature(): ",er);
+                            reject(er);
+                        })
+                    }
+                })
+            }
+        })
+    })
+}
+//update features
+exports.updateFeature=(feature)=>{
+    return new Promise((resolve,reject)=>{
+        pool.getConnection((e,con)=>{
+            if(e){
+                console.error(getTimeStamp()+" db.updateFeature(): ",e);
+                reject({code:1,msg:"Could not establish connection to service",error:e});
+            }
+            else{
+                con.query("update features_tb set name=?,description=?,label=?,parent=? where id=?",[feature.name,feature.description,feature.label,feature.parent,feature.id],(e,r)=>{
+                    if(e){
+                        console.error(getTimeStamp()+" db.updateFeature(): ",e);
+                        reject({code:1,msg:"Could not update feature",error:e});
+                    }
+                    else{
+                        con.release();
+                        this.getFeatures().then(result=>{
+                            resolve(result);
+                        }).catch(er=>{
+                            console.error(getTimeStamp()+" db.updateFeature(): ",er);
+                            reject(er);
+                        })
+                    }
+                })
+            }
+        })
+    })
+}
+exports.getFeatures = ()=>{
+    return new Promise((resolve,reject)=>{
+        pool.getConnection((e,con)=>{
+            if(e){
+                console.error("db.getFeatures(): ",e);
+                reject({code:1,msg:"Could not get connection to service"});
+            }
+            else{
+                con.query("select * from features_tb",(e,r,f)=>{
+                    if(e){
+                        con.release();
+                        console.error("db.getFeatures(): ",e);
+                        reject({code:1,msg:"Could not retrieve the list of features"});
+                    }
+                    else{
+                        con.release();
+                        resolve({code:0,msg:"Successfully",data:r});
+                    }
+                });
+            }
+        })
+        
+    })
+}
+
+//rolses
 exports.createRole = (data)=>{
     return new Promise((resolve,reject)=>{
         let sql = "insert into roles_tb (name,description,permission) values (?)";
