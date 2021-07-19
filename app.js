@@ -339,12 +339,29 @@ app.post("/user", (req, result) => {
       res.status(200).json(err)
     })
   });
+  //create role
   app.post("/role",authenticateToken,(req,res)=>{
     db.createRole({name:req.body.name,description:req.body.description,permission:req.body.permission})
     .then(result=>res.status(201).json(result))
     .catch(err=>res.status(200).json(err));
   })
+  //update role
+  app.put("/role/:roleId",authenticateToken,(req,res)=>{
+    let role = {id:req.params.roleId,name:req.body.name,description:req.body.description}
+    db.updateRole(role)
+    .then(result=>res.status(201).json(result))
+    .catch(err=>res.status(200).json(err));
+  })
 
+  //delete role
+  app.delete("/role/:roleId",authenticateToken,(req,res)=>{
+    db.deleteRole(req.params.roleId)
+    .then(result=>{
+      res.status(201).json(result);
+    }).catch(err=>{
+      res.status(200).json(err);
+    })
+  })
   //client roles
   app.get("/client_roles/:user_id",authenticateToken,(req,res)=>{
     db.getClientRoles(req.params.user_id)

@@ -699,7 +699,62 @@ exports.createRole = (data)=>{
         })
     })
 }
-
+//delete roles
+exports.deleteRole=(roleId)=>{
+    return new Promise((resolve,reject)=>{
+        pool.getConnection((e,con)=>{
+            if(e){
+                console.error(getTimeStamp()+" db.deleteRole(): ",e);
+                reject({code:1,msg:"Could not establish connection to service",error:e});
+            }
+            else{
+                con.query("delete from roles_tb where id=?",[roleId],(e,r)=>{
+                    if(e){
+                        console.error(getTimeStamp()+" db.deleteRole(): ",e);
+                        reject({code:1,msg:"Could not delete role",error:e});
+                    }
+                    else{
+                        con.release();
+                        this.getRoles().then(result=>{
+                            resolve(result);
+                        }).catch(er=>{
+                            console.error(getTimeStamp()+" db.deleteRole(): ",er);
+                            reject(er);
+                        })
+                    }
+                })
+            }
+        })
+    })
+}
+//update roles
+exports.updateRole=(role)=>{
+    return new Promise((resolve,reject)=>{
+        pool.getConnection((e,con)=>{
+            if(e){
+                console.error(getTimeStamp()+" db.updateRole(): ",e);
+                reject({code:1,msg:"Could not establish connection to service",error:e});
+            }
+            else{
+                con.query("update roles_tb set name=?,description=? where id=?",[role.name,role.description,role.id],(e,r)=>{
+                    if(e){
+                        console.error(getTimeStamp()+" db.updateRole(): ",e);
+                        reject({code:1,msg:"Could not update role",error:e});
+                    }
+                    else{
+                        con.release();
+                        this.getRoles().then(result=>{
+                            resolve(result);
+                        }).catch(er=>{
+                            console.error(getTimeStamp()+" db.updateRole(): ",er);
+                            reject(er);
+                        })
+                    }
+                })
+            }
+        })
+    })
+}
 exports.getRoles = ()=>{
     return new Promise((resolve,reject)=>{
         pool.query("select * from roles_tb",(e,r,f)=>{
@@ -861,7 +916,6 @@ exports.deleteClientRole = (user_id,role_id)=>{
 }
 //update client Role
 exports.updateClientRole = (data)=>{
-    console.log("update: ",data);
     return new Promise((resolve,reject)=>{
         this.getUser(data.user).then(result=>{
             if(result.data){
