@@ -790,7 +790,61 @@ exports.getFeatures = ()=>{
         
     })
 }
+exports.getFeaturesMultiple = (featureIds)=>{
+    return new Promise((resolve,reject)=>{
+        if(typeof featureIds == "object"){
+            pool.getConnection((e,con)=>{
+                if(e){
+                    console.error("db.getFeatures(): ",e);
+                    reject({code:1,msg:"Could not get connection to service"});
+                }
+                else{
+                    let sql = "select * from features_tb where ";
+                    featureIds.forEach((id,i)=>{
+                        if(i >= featureIds.length -1) sql +="id=? ";
+                        else sql += "id=? or ";
+                    });
 
+                    con.query(sql,featureIds,(e,r,f)=>{
+                        if(e){
+                            con.release();
+                            console.error("db.getFeatures(): ",e);
+                            reject({code:1,msg:"Could not retrieve the list of features"});
+                        }
+                        else{
+                            con.release();
+                            resolve({code:0,msg:"Successfully",data:r});
+                        }
+                    });
+                }
+            })     
+        }
+       else reject({code:1,msg:"Invalid id"});
+        
+    })
+}
+exports.getFeature = (featureId)=>{
+    return new Promise((resolve,reject)=>{
+        pool.getConnection((e,con)=>{
+            if(e){
+                console.error(getTimeStamp()+" db.getSubscriptionPackages(): ",e);
+                reject({code:1,msg:"Could not get connection to service",error:e});
+            }
+            else{
+                con.query("select * from features_tb where id=?",[featureId],(e,r)=>{
+                    if(e){
+                        console.error(getTimeStamp()+" db.getSubscriptionPackages(): ",e);
+                        reject({code:1,msg:"Could not get feature",error:e});
+                    }
+                    else{
+                        resolve({code:0,msg:"Success",data:r});
+                    }
+                    con.release();
+                })
+            }
+        })
+    })
+}
 //rolses
 exports.createRole = (data)=>{
     return new Promise((resolve,reject)=>{
@@ -1087,6 +1141,49 @@ exports.getPaymentTerms = ()=>{
                         con.release();
                         resolve({code:0,msg:"success",data:r});
                     }
+                })
+            }
+        })
+    })
+}
+
+//get subscriptions
+exports.getSubscriptionPackages = ()=>{
+    return new Promise((resolve,reject)=>{
+        pool.getConnection((e,con)=>{
+            if(e){
+                console.error(getTimeStamp()+" db.getSubscriptionPackages(): ",e);
+                reject({code:1,msg:"Could not get connection to service",error:e});
+            }
+            else{
+                con.query("select * from packages_tb order by id desc",(e,r)=>{
+                    if(e){
+                        console.console.error(getTimeStamp()+" db.getSubscriptionPackages(): ",e);
+                        reject({code:1,msg:"Could not get subscription packages",error:e})
+                    }
+                    else{
+                        if(r.length > 0){
+                            var packages = r.map(package=>{
+                                var p = package;
+                                var featureIds = package.features.split(",");
+                                var features =[];
+                                this.getFeaturesMultiple(featureIds)
+                                .then(result=>{
+                                    features = result.data;
+                                    p.features = features;
+                                    return p;
+                                })
+                                .catch(e=>{
+                                    console.error(getTimeStamp()+" db.getSubscriptionPackages(): ",e);
+                                    reject({code:1,msg:"Could not get features details",error:e});
+                                })
+                            });
+                            resolve({code:0,msg:"Success",data:packages}); 
+                        }
+                        else resolve({code:0,msg:"Success",data:r}); 
+                       
+                    }
+                    con.release();
                 })
             }
         })

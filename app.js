@@ -407,7 +407,16 @@ app.post("/user", (req, result) => {
       res.status(200).json(err);
     })
   })
-
+  //get features multiple
+  app.post("/features/multiple",authenticateToken,(req,res)=>{
+    let ids = req.body.ids;
+    db.getFeaturesMultiple(ids).then(result=>{
+      res.status(200).json(result);
+    })
+    .catch(er=>{
+      res.status(200).json(er);
+    })
+  })
   //create feature
   app.post("/features",authenticateToken,(req,res)=>{
     let data = {name:req.body.name,description:req.body.description,label:req.body.label,parent:req.body.parent};
