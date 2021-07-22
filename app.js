@@ -445,6 +445,37 @@ app.post("/user", (req, result) => {
     .catch(e=>{
       res.status(200).json(e);
     })
+  });
+
+  //packages
+  app.post("/packages",authenticateToken,(req,res)=>{
+    var package = {name:req.body.name,description:req.body.description,price:req.body.price,billing_term:req.body.billing_term,features:req.body.features}
+    db.createPackage(package).then(result=>{
+      res.status(201).json(result)
+    })
+    .catch(err=>{
+      res.status(200).json(err);
+    })
+  })
+
+  //get packages
+  app.get("/packages",authenticateToken,(req,res)=>{
+    db.getSubscriptionPackages()
+    .then(result=>{
+      res.status(200).json(result);
+    })
+    .catch(er=>{
+      res.status(200).json(er);
+    })
+  })
+  //getpaymetn terms
+  app.get("/payments",authenticateToken,(req,res)=>{
+    db.getPaymentTerms().then(result=>{
+      res.status(200).json(result);
+    })
+    .catch(err=>{
+      res.status(200).json(err);
+    })
   })
   //get list of regions
   app.get("/utils/regions",(req,res)=>{

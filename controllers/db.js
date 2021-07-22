@@ -1156,36 +1156,50 @@ exports.getSubscriptionPackages = ()=>{
                 reject({code:1,msg:"Could not get connection to service",error:e});
             }
             else{
-                con.query("select * from packages_tb order by id desc",(e,r)=>{
+                con.query("select * from packages_tb",(e,r)=>{
                     if(e){
                         console.console.error(getTimeStamp()+" db.getSubscriptionPackages(): ",e);
                         reject({code:1,msg:"Could not get subscription packages",error:e})
                     }
-                    else{
-                        if(r.length > 0){
-                            var packages = r.map(package=>{
-                                var p = package;
-                                var featureIds = package.features.split(",");
-                                var features =[];
-                                this.getFeaturesMultiple(featureIds)
-                                .then(result=>{
-                                    features = result.data;
-                                    p.features = features;
-                                    return p;
-                                })
-                                .catch(e=>{
-                                    console.error(getTimeStamp()+" db.getSubscriptionPackages(): ",e);
-                                    reject({code:1,msg:"Could not get features details",error:e});
-                                })
-                            });
-                            resolve({code:0,msg:"Success",data:packages}); 
-                        }
-                        else resolve({code:0,msg:"Success",data:r}); 
-                       
-                    }
+                    else resolve({code:0,msg:"Success",data:r}); 
+                        
                     con.release();
                 })
             }
         })
     })
+}
+
+//create subscription package
+exports.createPackage = (package)=>{
+    return new Promise((resolve,reject)=>{
+        pool.getConnection((e,con)=>{
+            if(e){
+                console.error(getTimeStamp()+" db.createPackage(): ",e);
+                reject({code:1,msg:"Could not get connection to service",error:e});
+            }
+            else{
+                let sql = "insert into packages_tb (name,description,price,billing_term,features) values (?) on duplicate key update price=values(price),description=values(description),billing_term=values(billing_term),features=values(features)";
+                let values = [package.name,package.description,package.price,package.billing_term,package.features];
+                con.query(sql,[values],(e,r)=>{
+                    if(e){
+                        console.error(getTimeStamp()+" db.createPackage(): ",e);
+                        reject({code:1,msg:"Could not create package",error:e});
+                    }
+                    else{
+                        con.release();
+                        this.getSubscriptionPackages()
+                        .then(result=>{
+                            reject({code:0,msg:"Successful",data:result.data});
+                        })
+                        .catch(er=>{
+                            console.error(getTimeStamp()+" db.createPackage(): ",er);
+                            reject({code:1,msg:"Could not create package",error:er})
+                        })
+                    }
+                })
+            }
+        })
+    })
+    
 }
