@@ -65,7 +65,7 @@ app.post("/initialize",authenticateToken,(req,res)=>{
 
 //create client record
 app.post("/client",authenticateToken,(req,res)=>{
-  let data = {country:req.body.country,region:req.body.region,user:req.body.user,name:req.body.company_name,address:req.body.address,email:req.body.email,phone:req.body.phone,contact_person:req.body.contact_person,contact_email:req.body.contact_email,logo:req.body.logo,db:req.body.db};
+  let data = {tin:req.body.tin,code:req.body.imdg_code,country:req.body.country,region:req.body.region,user:req.body.user,name:req.body.company_name,address:req.body.address,email:req.body.email,phone:req.body.phone,contact_person:req.body.contact_person,contact_email:req.body.contact_email,logo:req.body.logo,db:req.body.db};
   if(req.body.user == 0){
     let randomPass = "password";//db.generateRandomPassword(8);
     let cred = {email:data.contact_email};
@@ -468,6 +468,103 @@ app.post("/user", (req, result) => {
       res.status(200).json(er);
     })
   })
+
+  //consignments
+  app.post("/consignments",authenticateToken,(req,res)=>{
+    var  data = {
+      cargo_classification:req.body.cargo_classification,
+      place_of_destination:req.body.place_of_destination,
+      place_of_delivery:req.body.place_of_delivery,
+      port_of_discharge:req.body.port_of_discharge,
+      port_of_origin:req.body.port_of_origin,
+      no_of_containers:req.body.no_of_containers,
+      goods_description:req.body.goods_description,
+      no_of_packages:req.body.no_of_packages,
+      package_unit:req.body.package_unit,
+      gross_weight:req.body.gross_weight,
+      gross_weight_unit:req.body.gross_weight_unit,
+      gross_volume:req.body.gross_volume,gross_volume_unit:req.body.gross_volume_unit,net_weight:req.body.net_weight,net_weight_unit:req.body.net_weight_unit,
+      invoice_value:req.body.invoice_value,invoice_currency:req.body.invoice_currency,freight_charge:req.body.freight_charge,freight_currency:req.body.freight_currency,
+      imdg_code:req.body.imdg_code,packing_type:req.body.packing_type,oil_type:req.body.oil_type,shipping_mark:req.body.shipping_mark,
+      user:req.body.user
+  }
+    db.createConsignment(data)
+    .then(result=>{
+      res.status(201).json(result);
+    })
+    .catch(er=>{
+      res.status(200).json(er);
+    });
+  })
+  app.get("/consignments/:user_id",authenticateToken,(req,res)=>{
+    db.getConsignments(req.params.user_id)
+    .then(result=>{
+      res.status(200).json(result)
+    })
+    .catch(err=>{
+      res.status(200).json(err);
+    })
+  })
+ //update consignments
+ app.put("/consignments/:user_id/:consignment_id",authenticateToken,(req,res)=>{
+   var data;
+   if(req.body.source == "data"){
+    data = {
+        cargo_classification:req.body.cargo_classification,
+        place_of_destination:req.body.place_of_destination,
+        place_of_delivery:req.body.place_of_delivery,
+        port_of_discharge:req.body.port_of_discharge,
+        port_of_origin:req.body.port_of_origin,
+        no_of_containers:req.body.no_of_containers,
+        goods_description:req.body.goods_description,
+        no_of_packages:req.body.no_of_packages,
+        package_unit:req.body.package_unit,
+        gross_weight:req.body.gross_weight,
+        gross_weight_unit:req.body.gross_weight_unit,
+        gross_volume:req.body.gross_volume,gross_volume_unit:req.body.gross_volume_unit,net_weight:req.body.net_weight,net_weight_unit:req.body.net_weight_unit,
+        invoice_value:req.body.invoice_value,invoice_currency:req.body.invoice_currency,freight_charge:req.body.freight_charge,freight_currency:req.body.freight_currency,
+        imdg_code:req.body.imdg_code,packing_type:req.body.packing_type,oil_type:req.body.oil_type,shipping_mark:req.body.shipping_mark,
+        user:req.params.user_id,
+        id:req.params.consignment_id
+    }
+  }
+  else if(req.body.source == "consignee"){
+    data = {
+      user:req.params.user_id,
+      id:req.params.consignment_id,
+      consignee_name:req.body.consignee_name,
+      consignee_phone:req.body.consignee_phone,
+      consignee_address:req.body.consignee_address,
+      consignee_tin:req.body.consignee_tin,
+      notify_name:req.body.notify_name,
+      notify_phone:req.body.notify_phone,
+      notify_address:req.body.notify_address,
+      notify_tin:req.body.notify_tin,
+    } 
+  }
+  else if(req.body.source=="exporter"){
+    data = {
+      user:req.params.user_id,
+      id:req.params.consignment_id,
+      exporter_id:req.body.exporter_id
+    }
+  }
+  else{
+    data ={
+      user:req.params.user_id,
+      id:req.params.consignment_id,
+      forwarder_id:req.body.forwarder_id,
+      forwarder_code:req.body.forwarder_code
+    }
+  }
+  db.updateConsignment(data)
+  .then(result=>{
+    res.status(201).json(result);
+  })
+  .catch(er=>{
+    res.status(200).json(er);
+  });
+})
   //getpaymetn terms
   app.get("/payments",authenticateToken,(req,res)=>{
     db.getPaymentTerms().then(result=>{

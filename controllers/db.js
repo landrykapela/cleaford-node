@@ -34,23 +34,30 @@ const getTimeStamp =()=>{
 }
 
 //save base64 to file
-const saveImage = (encodedImage)=>{
-    
-    var matches = encodedImage.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/),
-    response = {};
-    
-    if (matches.length !== 3) {
-        return {code:1,msg:"Invalid image"}
-    }
-    
-    response.type = matches[1];
-    response.data = new Buffer(matches[2], 'base64');
-    
-    // var path "/var/"
-
-    return response;
-    
-    
+const saveFile = (encodedData)=>{
+    if(encodedData){
+        var parts = encodedData.split(",base64");
+        var ext = "."+parts[0].split("/")[1];
+        var filename = randomString(10) + ext;
+        fs.writeFile("/data/"+filename,parts[1],{encoding:'base64'},(e)=>{
+            if(e) return false;
+            else return filename;
+        });
+    }   
+    return false;
+}
+//get client pool
+const getClientPool = (user)=>{
+    let prefix = user.db.split("_")[1];
+    return mysql.createPool({
+        socketPath:config.socket,host:config.host,
+        user: prefix+"_admin",
+        database: user.db,
+        password: user.db_sec,
+        waitForConnections: true,
+        connectionLimit: 10,
+        queueLimit: 0,
+    })
 }
 
 //update user imiage
@@ -93,6 +100,7 @@ exports.generateRandomPassword = (length)=>{
     }
     return result;
 }
+
 //test database connection
 exports.testDbConnection = ()=>{
     return new Promise((resolve,reject)=>{
@@ -214,20 +222,6 @@ exports.createClientSpace = (userId)=>{
    
 }
 
-//get client pool
-exports.getClientPool = (user)=>{
-    let prefix = user.db.split("_")[1];
-    return mysql.createPool({
-        socketPath:config.socket,host:config.host,
-        user: prefix+"_admin",
-        database: user.db,
-        password: user.db_sec,
-        waitForConnections: true,
-        connectionLimit: 10,
-        queueLimit: 0,
-    })
-}
-
 //create client
 exports.createClient = (data)=>{
     return new Promise((resolve,reject)=>{
@@ -244,8 +238,8 @@ exports.createClient = (data)=>{
                     // if(data.user === 0){
                     //     // this.signUp()
                     // }
-                    var sql = "insert into client_tb (country,region,status,logo,name,address,email,phone,contact_person,contact_email,date_created) values (?) on duplicate key update status=values(status),logo=values(logo),name=values(name),address=values(address),phone=values(phone),contact_person=values(contact_person),country=values(country),region=values(region)";
-                    let values = [data.country,data.region,1,data.logo,data.name,data.address,data.email,data.phone,data.contact_person,data.contact_email,Date.now()]
+                    var sql = "insert into client_tb (tin,country,region,status,logo,name,address,email,phone,contact_person,contact_email,date_created) values (?) on duplicate key update status=values(status),logo=values(logo),name=values(name),address=values(address),phone=values(phone),contact_person=values(contact_person),country=values(country),region=values(region)";
+                    let values = [data.tin,data.country,data.region,1,data.logo,data.name,data.address,data.email,data.phone,data.contact_person,data.contact_email,Date.now()]
                     conn.query(sql,[values],(er,res)=>{
                         if(er){
                             conn.rollback(()=>{
@@ -291,8 +285,8 @@ exports.updateClient=(data)=>{
                     })
                 }
                 
-                let sql = "update client_tb set country=?,region=?,phone=?,name=?,email=?,address=?,contact_person=?,contact_email=?,logo=? where id=?";
-                let values = [data.country,data.region,data.phone,data.name,data.email,data.address,data.contact_person,data.contact_email,data.logo,data.id];
+                let sql = "update client_tb set tin=?, country=?,region=?,phone=?,name=?,email=?,address=?,contact_person=?,contact_email=?,logo=? where id=?";
+                let values = [data.tin,data.country,data.region,data.phone,data.name,data.email,data.address,data.contact_person,data.contact_email,data.logo,data.id];
                 pool.query(sql,values,(e,r)=>{
                     if(e){
                         console.error("db.updateClient(): ",e);
@@ -377,7 +371,7 @@ exports.createCustomer=(data)=>{
         this.getUser(data.user)
         .then(result=>{
             let user = result.data;
-            let pool = this.getClientPool(user);
+            let pool = getClientPool(user);
             pool.getConnection((er,conn)=>{
                 if(er){
                     resolve({code:1,msg:"Something went wrong. Please try again later",error:er});
@@ -389,7 +383,7 @@ exports.createCustomer=(data)=>{
                             reject({code:1,msg:"Something went wrong. Please try again later",error:e});
                         }
                         else{
-                            let sql = "create table if not exists customer_tb (id int(10) auto_increment primary key,name varchar(50) not null, email varchar(255) unique not null,address varchar(255),region varchar(50), country varchar(50),contact_person varchar(50),contact_email varchar(50),phone varchar(15) not null)";
+                            let sql = "create table if not exists customer_tb (id int(10) auto_increment primary key,name varchar(50) not null, email varchar(255) unique not null,address varchar(255),region varchar(50), country varchar(50),contact_person varchar(50),contact_email varchar(50),phone varchar(15) not null,tin varchar(20))";
                             conn.query(sql,(e,r)=>{
                                 if(e){
                                     conn.rollback((e)=>{
@@ -407,8 +401,8 @@ exports.createCustomer=(data)=>{
                                         }
                                         else{
 
-                                            let sql = "insert into customer_tb (name,address,region,country,email,phone,contact_email,contact_person) values(?) on duplicate key update region=values(region),contact_email=values(contact_email),country=values(country),address=values(address),phone=values(phone),contact_person=values(contact_person)";
-                                            let values = [data.name,data.address,data.region,data.country,data.email,data.phone,data.contact_email,data.contact_person];
+                                            let sql = "insert into customer_tb (tin,name,address,region,country,email,phone,contact_email,contact_person) values(?) on duplicate key update region=values(region),contact_email=values(contact_email),country=values(country),address=values(address),phone=values(phone),contact_person=values(contact_person)";
+                                            let values = [data.tin,data.name,data.address,data.region,data.country,data.email,data.phone,data.contact_email,data.contact_person];
                                             conn.query(sql,[values],(e,r)=>{
                                                 if(e){
                                                     conn.rollback(error=>{
@@ -458,9 +452,9 @@ exports.updateCustomer = (data)=>{
     return new Promise((resolve,reject)=>{
         this.getUser(data.user)
         .then(result=>{
-            let pool = this.getClientPool(result.data);
-            let sql = "update customer_tb set name=?,address=?,country=?,region=?,email=?,phone=?,contact_person=?,contact_email=? where id=?";
-            let values = [data.name,data.address,data.country,data.region,data.email,data.phone,data.contact_person,data.contact_email,data.id];
+            let pool = getClientPool(result.data);
+            let sql = "update customer_tb set tin=?, name=?,address=?,country=?,region=?,email=?,phone=?,contact_person=?,contact_email=? where id=?";
+            let values = [data.tin,data.name,data.address,data.country,data.region,data.email,data.phone,data.contact_person,data.contact_email,data.id];
             pool.query(sql,values,(e,r)=>{
                 if(e){
                     console.error("db.updateCustomer(): ",e);
@@ -491,7 +485,7 @@ exports.getCustomersList =(userId)=>{
         this.getUser(userId).then(result=>{
             let user = result.data;
             if(user.db && user.db.includes("_")){
-                var pool = this.getClientPool(user);
+                var pool = getClientPool(user);
                 let sql = "select * from customer_tb order by name asc";
                 pool.query(sql,(e,r)=>{
                     if(e){
@@ -941,7 +935,7 @@ exports.getClientRoles = (user_id)=>{
     return new Promise((resolve,reject)=>{
         this.getUser(user_id).then(result=>{
             let user = result.data;
-            var pool = this.getClientPool(user);
+            var pool = getClientPool(user);
             var sql = "select * from roles order by level asc";
             pool.query(sql,(e,r)=>{
                 if(e){
@@ -965,7 +959,7 @@ exports.createClientRole = (data)=>{
         .then(result=>{
             let user = result.data;
             if(user.db.includes("space_")){
-                var clientPool = this.getClientPool(user);
+                var clientPool = getClientPool(user);
                 clientPool.getConnection((er,con)=>{
                     if(er){
                         con.rollback(()=>{
@@ -1046,7 +1040,7 @@ exports.deleteClientRole = (user_id,role_id)=>{
                 this.getUser(user_id).then(result=>{
                     con.release();
                     if(result.data){
-                        var clientPool = this.getClientPool(result.data);
+                        var clientPool = getClientPool(result.data);
                         clientPool.getConnection((e,conn)=>{
                             if(e){
                                 conn.release();
@@ -1087,7 +1081,7 @@ exports.updateClientRole = (data)=>{
     return new Promise((resolve,reject)=>{
         this.getUser(data.user).then(result=>{
             if(result.data){
-                var clientPool = this.getClientPool(result.data);
+                var clientPool = getClientPool(result.data);
                 clientPool.getConnection((e,conn)=>{
                     if(e){
                         conn.release();
@@ -1199,6 +1193,248 @@ exports.createPackage = (package)=>{
                     }
                 })
             }
+        })
+    })
+    
+}
+
+//create consignment
+exports.createConsignment =(data)=>{
+    return new Promise((resolve,reject)=>{
+        this.getUser(data.user).then(result=>{
+            var userData = result.data;
+            if(result.data){
+                var clientPool = getClientPool(result.data);
+                clientPool.getConnection((e,con)=>{
+                    if(e){
+                        console.error(getTimeStamp()+" db.createConsignment(): ",e);
+                        reject({code:1,msg:"Could not get connection to service",error:e});
+                    }
+                    else{
+                        //check if table exists
+                        con.query("show tables",(er,r)=>{
+                            if(er){
+                                console.error(getTimeStamp()+" db.createConsignment(): ",e);
+                                reject({code:1,msg:"Something went wrong, please try again later",error:e});
+                            }
+                            else{
+                                var instructions_file = null;
+                                if(data.shipping_instructions) {
+                                    instructions_file = data.shipping_instructions;
+                                    delete data.shipping_instructions;
+                                }
+                                var keys = Object.keys(data);
+                                var values = Object.values(data);  
+                                let key = "Tables_in_"+userData.db;
+                                var check_files = r.filter(i=>i[key] == "user_files");
+                                if(check_files.length == 0){
+                                    con.query("create table if not exists user_files (id int(10) auto_increment primary key,name varchar(255) not null unique,refer_id int(10) not null, target varchar(50),filename varchar(255) not null unique)",(e,r)=>{
+                                        if(e){
+                                            console.error(getTimeStamp()+" db.createConsignment(): ",e);
+                                            reject({code:1,msg:"Something went wrong, please try again later",error:e});
+                 
+                                        }
+                                        else{
+                                            var check_cons = r.filter(i=>{
+                                                return i[key] == "consignments_tb";
+                                            })         
+                                            console.log("check: ",check_cons[0][key]);                   
+                                            if(check_cons.length == 0){
+                                                let sql = "create table if not exists consignments_tb (id int(10) auto_increment primary key, status int(2) default 1, date_created bignint, ";
+                                                keys.forEach((key,index)=>{
+                                                    sql += key;
+                                                    if(typeof(values[index]) == "string") {
+                                                        sql += " varchar(100) not null, ";
+                                                        // vals += "'"+values[index]+"'";
+                                                    }
+                                                    else {
+                                                        sql += " int(6) not null, ";
+                                                        // vals += values[index];
+                                                    }
+                                                    
+                                                });
+                                                sql += "consignee_name varchar(255), consignee_phone varchar(15), consignee_address varchar(255), consignee_tin varchar(20), notify_name varchar(255), notify_phone varchar(15), notify_address varchar(255), notify_tin varchar(20), exporter_id int(6), forwarder_id int(10), forwarder_code varchar(20)) ";
+                                                con.query(sql,(e,r)=>{
+                                                    if(e){
+                                                        console.error(getTimeStamp()+" db.createConsignment(): ",e);
+                                                        reject({code:1,msg:"Could not create consignment table",error:e});
+                                                    }
+                                                })
+                                               
+                                            }
+                                            var insertSql = "insert into consignments_tb (date_created,date_modified,";
+                                            var now = Date.now();
+                                            var val = "values ("+now+","+now+",";
+                                            keys.forEach((key,index)=>{
+                                                if(index < keys.length -1){
+                                                    insertSql += key +", ";
+                                                    if(typeof values[index] == "string") val += "'"+values[index]+"',";
+                                                    else val += values[index]+",";
+                                                }
+                                                else{
+                                                    insertSql += key+") ";
+                                                    if(typeof values[index] == "string") val += "'"+values[index]+"')";
+                                                    else val += values[index]+")";
+                                                }
+                                            });
+                                            insertSql += val;
+                                            con.query(insertSql,values,(e,r)=>{
+                                                if(e){
+                                                    console.error(getTimeStamp()+" db.createConsignment(): ",e);
+                                                    reject({code:1,msg:"Could not create consignment record",error:e});
+                                                }
+                                                else{
+                                                    if(r.insertId){
+                                                        if(instructions_file != null){
+                                                            var filename = saveFile(instructions_file);
+                                                            if(!filename){
+                                                                var fileSql = "insert into user_files (name,refer_id,target,filename) values (?)";
+                                                                var name = "shipping instructions";
+                                                                var refer_id = r.insertId;
+                                                                var target = "consignments_tb";
+                                                                values = [name,refer_id,target,filename];
+                                                                con.query(fileSql,values,(e,r)=>{
+                                                                    if(e){
+                                                                        console.error(getTimeStamp()+" db.createConsignment(): ",e);
+                                                                        reject({code:1,msg:"Could not save file information",error:e});
+                                                                    }
+                                                                    else{
+                                                                        con.release();
+                                                                        this.getConsignments(data.user)
+                                                                        .then(result=>{
+                                                                            resolve({code:0,msg:"Successful",data:result.data});
+                                                                        })
+                                                                        .catch(err=>{
+                                                                            console.error(getTimeStamp()+" db.createConsignment(): ",err);
+                                                                            reject({code:1,msg:"Could not get consignments list",error:err});
+                                                                   
+                                                                        })
+                                                                    }
+                                                                })
+                                                            }
+                                                            
+                                                        }
+                                                        
+                                                    }
+                                                    else
+                                                    reject({code:1,msg:"No new record was created"});
+                                                }
+                                            })
+                                        }
+                                    })
+                                }
+                                
+                            }
+                        })
+                    }
+                })
+            }
+            else{
+                console.error(getTimeStamp()+" db.createConsignment(): ",err);
+                reject({code:1,msg:"You need to login to perform this operation",error:err});
+           
+            }
+        })
+    })
+    
+}
+
+exports.getConsignments = (userId)=>{
+    return new Promise((resolve,reject)=>{
+        this.getUser(userId)
+        .then(result=>{
+            if(result.data){
+                var pool = getClientPool(result.data);
+                pool.getConnection((e,con)=>{
+                    if(e){
+                        console.error(getTimeStamp()+" db.createConsignment(): ",e);
+                        reject({code:1,msg:"Could not get connection to service",error:e});
+                    }
+                    else{
+                        con.query("select * from consignments_tb order by id desc",(e,r)=>{
+                            if(e){
+                                console.error(getTimeStamp()+" db.createConsignment(): ",e);
+                                reject({code:1,msg:"Could not get connection to service",error:e});
+
+                            }
+                            else{
+                                resolve({code:0,"msg":"successful",data:r});
+                            }
+                        })
+                    }
+                })
+            }
+        })
+        .catch(e=>{
+            console.error(getTimeStamp()+" db.getConsignments() :",e);
+            reject({code:1,msg:"You need to login",error:e})
+        })
+    })
+}
+
+//create consignment
+exports.updateConsignment =(data)=>{
+    var consId = data.id;
+    var userId = data.user;
+    delete data.id;
+    delete data.user;
+    return new Promise((resolve,reject)=>{
+        this.getUser(userId).then(result=>{
+            var userData = result.data;
+            if(userData){
+                var clientPool = getClientPool(userData);
+                clientPool.getConnection((e,con)=>{
+                    if(e){
+                        console.error(getTimeStamp()+" db.updateConsignment(): ",e);
+                        reject({code:1,msg:"Could not get connection to service",error:e});
+                    }
+                    else{
+                        var updateSql = "update consignments_tb set ";
+                        var now = Date.now();
+                        var keys = Object.keys(data);
+                        var values = Object.values(data);
+                        keys.forEach((key,index)=>{
+                            if(index < keys.length -1){
+                                updateSql += key +"=?, ";
+                                
+                            }
+                            else{
+                                updateSql += key+"=?, date_modified=? where id=?";
+                                
+                            }
+                        });
+                        values.push(now);
+                        values.push(consId);
+                        con.query(updateSql,values,(e,r)=>{
+                            if(e){
+                                console.error(getTimeStamp()+" db.updateConsignment(): ",e);
+                                reject({code:1,msg:"Could not update consignment record",error:e});
+                            }
+                            else{
+                                con.release();
+                                this.getConsignments(userId)
+                                .then(result=>{
+                                    resolve({code:0,msg:"Successful",data:result.data});
+                                })
+                                .catch(err=>{
+                                    console.error(getTimeStamp()+" db.updateConsignment(): ",err);
+                                    reject({code:1,msg:"Could not get consignments list",error:err});
+                                })
+                                
+                            }
+                        })
+                    }
+                })
+            }
+            else{
+                console.error(getTimeStamp()+" db.updateConsignment(): ",e);
+                reject({code:1,msg:"You need to login to perform this operation",error:e});
+        
+            }
+        })
+        .catch(e=>{
+            console.error(getTimeStamp()+" db.updateConsignment(): ",e);
+            reject({code:1,msg:"You need to login to perform this operation",error:e});
         })
     })
     
