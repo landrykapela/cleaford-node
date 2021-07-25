@@ -238,8 +238,8 @@ exports.createClient = (data)=>{
                     // if(data.user === 0){
                     //     // this.signUp()
                     // }
-                    var sql = "insert into client_tb (tin,country,region,status,logo,name,address,email,phone,contact_person,contact_email,date_created) values (?) on duplicate key update status=values(status),logo=values(logo),name=values(name),address=values(address),phone=values(phone),contact_person=values(contact_person),country=values(country),region=values(region)";
-                    let values = [data.tin,data.country,data.region,1,data.logo,data.name,data.address,data.email,data.phone,data.contact_person,data.contact_email,Date.now()]
+                    var sql = "insert into client_tb (code,tin,country,region,status,logo,name,address,email,phone,contact_person,contact_email,date_created) values (?) on duplicate key update status=values(status),logo=values(logo),name=values(name),address=values(address),phone=values(phone),contact_person=values(contact_person),country=values(country),region=values(region)";
+                    let values = [data.code,data.tin,data.country,data.region,1,data.logo,data.name,data.address,data.email,data.phone,data.contact_person,data.contact_email,Date.now()]
                     conn.query(sql,[values],(er,res)=>{
                         if(er){
                             conn.rollback(()=>{
@@ -285,8 +285,8 @@ exports.updateClient=(data)=>{
                     })
                 }
                 
-                let sql = "update client_tb set tin=?, country=?,region=?,phone=?,name=?,email=?,address=?,contact_person=?,contact_email=?,logo=? where id=?";
-                let values = [data.tin,data.country,data.region,data.phone,data.name,data.email,data.address,data.contact_person,data.contact_email,data.logo,data.id];
+                let sql = "update client_tb set code=?, tin=?, country=?,region=?,phone=?,name=?,email=?,address=?,contact_person=?,contact_email=?,logo=? where id=?";
+                let values = [data.code,data.tin,data.country,data.region,data.phone,data.name,data.email,data.address,data.contact_person,data.contact_email,data.logo,data.id];
                 pool.query(sql,values,(e,r)=>{
                     if(e){
                         console.error("db.updateClient(): ",e);
@@ -1223,106 +1223,174 @@ exports.createConsignment =(data)=>{
                                     instructions_file = data.shipping_instructions;
                                     delete data.shipping_instructions;
                                 }
-                                var keys = Object.keys(data);
-                                var values = Object.values(data);  
-                                let key = "Tables_in_"+userData.db;
-                                var check_files = r.filter(i=>i[key] == "user_files");
-                                if(check_files.length == 0){
-                                    con.query("create table if not exists user_files (id int(10) auto_increment primary key,name varchar(255) not null unique,refer_id int(10) not null, target varchar(50),filename varchar(255) not null unique)",(e,r)=>{
-                                        if(e){
-                                            console.error(getTimeStamp()+" db.createConsignment(): ",e);
-                                            reject({code:1,msg:"Something went wrong, please try again later",error:e});
-                 
-                                        }
-                                        else{
-                                            var check_cons = r.filter(i=>{
-                                                return i[key] == "consignments_tb";
-                                            })         
-                                            console.log("check: ",check_cons[0][key]);                   
-                                            if(check_cons.length == 0){
-                                                let sql = "create table if not exists consignments_tb (id int(10) auto_increment primary key, status int(2) default 1, date_created bignint, ";
+                                if(r && r.length > 0){
+                                    var keys = Object.keys(data);
+                                    var values = Object.values(data);  
+                                    let key = "Tables_in_"+userData.db;
+                                    var check_files = r.filter(i=>i[key] == "user_files");
+                                    var check_cons = r.filter(i=>{
+                                        return i[key] == "consignments_tb";
+                                    })         
+                                    console.log("check: ",r);                   
+                                    if(check_cons.length == 0){
+                                        let sql = "create table if not exists consignments_tb (id int(10) auto_increment primary key, status int(2) default 1, date_created bigint, date_modified bigint, ";
+                                        keys.forEach((key,index)=>{
+                                            sql += key;
+                                            if(typeof(values[index]) == "string") {
+                                                sql += " varchar(100) not null, ";
+                                                // vals += "'"+values[index]+"'";
+                                            }
+                                            else {
+                                                sql += " int(6) not null, ";
+                                                // vals += values[index];
+                                            }
+                                            
+                                        });
+                                        sql += "consignee_name varchar(255), consignee_phone varchar(15), consignee_address varchar(255), consignee_tin varchar(20), notify_name varchar(255), notify_phone varchar(15), notify_address varchar(255), notify_tin varchar(20), exporter_id int(6), forwarder_id int(10), forwarder_code varchar(20)) ";
+                                        con.query(sql,(e,r)=>{
+                                            if(e){
+                                                console.error(getTimeStamp()+" db.createConsignment(): ",e);
+                                                reject({code:1,msg:"Could not create consignment table",error:e});
+                                            }
+                                            else{
+                                                var insertSql = "insert into consignments_tb (date_created,date_modified,";
+                                                var now = Date.now();
+                                                var val = "values ("+now+","+now+",";
                                                 keys.forEach((key,index)=>{
-                                                    sql += key;
-                                                    if(typeof(values[index]) == "string") {
-                                                        sql += " varchar(100) not null, ";
-                                                        // vals += "'"+values[index]+"'";
+                                                    if(index < keys.length -1){
+                                                        insertSql += key +", ";
+                                                        if(typeof values[index] == "string") val += "'"+values[index]+"',";
+                                                        else val += values[index]+",";
                                                     }
-                                                    else {
-                                                        sql += " int(6) not null, ";
-                                                        // vals += values[index];
+                                                    else{
+                                                        insertSql += key+") ";
+                                                        if(typeof values[index] == "string") val += "'"+values[index]+"')";
+                                                        else val += values[index]+")";
                                                     }
-                                                    
                                                 });
-                                                sql += "consignee_name varchar(255), consignee_phone varchar(15), consignee_address varchar(255), consignee_tin varchar(20), notify_name varchar(255), notify_phone varchar(15), notify_address varchar(255), notify_tin varchar(20), exporter_id int(6), forwarder_id int(10), forwarder_code varchar(20)) ";
-                                                con.query(sql,(e,r)=>{
+                                                insertSql += val;
+                                                con.query(insertSql,values,(e,r)=>{
                                                     if(e){
                                                         console.error(getTimeStamp()+" db.createConsignment(): ",e);
-                                                        reject({code:1,msg:"Could not create consignment table",error:e});
+                                                        reject({code:1,msg:"Could not create consignment record",error:e});
                                                     }
-                                                })
-                                               
-                                            }
-                                            var insertSql = "insert into consignments_tb (date_created,date_modified,";
-                                            var now = Date.now();
-                                            var val = "values ("+now+","+now+",";
-                                            keys.forEach((key,index)=>{
-                                                if(index < keys.length -1){
-                                                    insertSql += key +", ";
-                                                    if(typeof values[index] == "string") val += "'"+values[index]+"',";
-                                                    else val += values[index]+",";
-                                                }
-                                                else{
-                                                    insertSql += key+") ";
-                                                    if(typeof values[index] == "string") val += "'"+values[index]+"')";
-                                                    else val += values[index]+")";
-                                                }
-                                            });
-                                            insertSql += val;
-                                            con.query(insertSql,values,(e,r)=>{
-                                                if(e){
-                                                    console.error(getTimeStamp()+" db.createConsignment(): ",e);
-                                                    reject({code:1,msg:"Could not create consignment record",error:e});
-                                                }
-                                                else{
-                                                    if(r.insertId){
-                                                        if(instructions_file != null){
-                                                            var filename = saveFile(instructions_file);
-                                                            if(!filename){
-                                                                var fileSql = "insert into user_files (name,refer_id,target,filename) values (?)";
-                                                                var name = "shipping instructions";
-                                                                var refer_id = r.insertId;
-                                                                var target = "consignments_tb";
-                                                                values = [name,refer_id,target,filename];
-                                                                con.query(fileSql,values,(e,r)=>{
-                                                                    if(e){
-                                                                        console.error(getTimeStamp()+" db.createConsignment(): ",e);
-                                                                        reject({code:1,msg:"Could not save file information",error:e});
-                                                                    }
-                                                                    else{
-                                                                        con.release();
-                                                                        this.getConsignments(data.user)
-                                                                        .then(result=>{
-                                                                            resolve({code:0,msg:"Successful",data:result.data});
-                                                                        })
-                                                                        .catch(err=>{
-                                                                            console.error(getTimeStamp()+" db.createConsignment(): ",err);
-                                                                            reject({code:1,msg:"Could not get consignments list",error:err});
-                                                                   
-                                                                        })
-                                                                    }
-                                                                })
+                                                    else{
+                                                        if(r.insertId){
+                                                            if(instructions_file != null){
+                                                                var filename = saveFile(instructions_file);
+                                                                if(!filename){
+                                                                    var fileSql = "insert into user_files (name,refer_id,target,filename) values (?)";
+                                                                    var name = "shipping instructions";
+                                                                    var refer_id = r.insertId;
+                                                                    var target = "consignments_tb";
+                                                                    values = [name,refer_id,target,filename];
+                                                                    con.query(fileSql,values,(e,r)=>{
+                                                                        if(e){
+                                                                            console.error(getTimeStamp()+" db.createConsignment(): ",e);
+                                                                            reject({code:1,msg:"Could not save file information",error:e});
+                                                                        }
+                                                                        else{
+                                                                            con.release();
+                                                                            this.getConsignments(data.user)
+                                                                            .then(result=>{
+                                                                                resolve({code:0,msg:"Successful",data:result.data});
+                                                                            })
+                                                                            .catch(err=>{
+                                                                                console.error(getTimeStamp()+" db.createConsignment(): ",err);
+                                                                                reject({code:1,msg:"Could not get consignments list",error:err});
+                                                                       
+                                                                            })
+                                                                        }
+                                                                    })
+                                                                }
+                                                                
                                                             }
                                                             
                                                         }
-                                                        
+                                                        else
+                                                        reject({code:1,msg:"No new record was created"});
                                                     }
-                                                    else
-                                                    reject({code:1,msg:"No new record was created"});
-                                                }
-                                            })
-                                        }
-                                    })
+                                                })
+                                            }
+                                        })
+                                       
+                                    }
+                                    else{
+                                        var insertSql = "insert into consignments_tb (date_created,date_modified,";
+                                                var now = Date.now();
+                                                var val = "values ("+now+","+now+",";
+                                                keys.forEach((key,index)=>{
+                                                    if(index < keys.length -1){
+                                                        insertSql += key +", ";
+                                                        if(typeof values[index] == "string") val += "'"+values[index]+"',";
+                                                        else val += values[index]+",";
+                                                    }
+                                                    else{
+                                                        insertSql += key+") ";
+                                                        if(typeof values[index] == "string") val += "'"+values[index]+"')";
+                                                        else val += values[index]+")";
+                                                    }
+                                                });
+                                                insertSql += val;
+                                                con.query(insertSql,values,(e,r)=>{
+                                                    if(e){
+                                                        console.error(getTimeStamp()+" db.createConsignment(): ",e);
+                                                        reject({code:1,msg:"Could not create consignment record",error:e});
+                                                    }
+                                                    else{
+                                                        if(r.insertId){
+                                                            if(instructions_file != null){
+                                                                var filename = saveFile(instructions_file);
+                                                                if(!filename){
+                                                                    var fileSql = "insert into user_files (name,refer_id,target,filename) values (?)";
+                                                                    var name = "shipping instructions";
+                                                                    var refer_id = r.insertId;
+                                                                    var target = "consignments_tb";
+                                                                    values = [name,refer_id,target,filename];
+                                                                    con.query(fileSql,values,(e,r)=>{
+                                                                        if(e){
+                                                                            console.error(getTimeStamp()+" db.createConsignment(): ",e);
+                                                                            reject({code:1,msg:"Could not save file information",error:e});
+                                                                        }
+                                                                        else{
+                                                                            con.release();
+                                                                            this.getConsignments(data.user)
+                                                                            .then(result=>{
+                                                                                resolve({code:0,msg:"Successful",data:result.data});
+                                                                            })
+                                                                            .catch(err=>{
+                                                                                console.error(getTimeStamp()+" db.createConsignment(): ",err);
+                                                                                reject({code:1,msg:"Could not get consignments list",error:err});
+                                                                       
+                                                                            })
+                                                                        }
+                                                                    })
+                                                                }
+                                                                
+                                                            }
+                                                            
+                                                        }
+                                                        else
+                                                        reject({code:1,msg:"No new record was created"});
+                                                    }
+                                                })
+                                    }
+                                    if(check_files.length == 0){
+                                        con.query("create table if not exists user_files (id int(10) auto_increment primary key,name varchar(255) not null unique,refer_id int(10) not null, target varchar(50),filename varchar(255) not null unique)",(e,r)=>{
+                                            if(e){
+                                                console.error(getTimeStamp()+" db.createConsignment(): ",e);
+                                                reject({code:1,msg:"Something went wrong, please try again later",error:e});
+                     
+                                            }
+                                            else{
+                                               
+                                              
+                                            }
+                                        })
+                                    }
+                                    
                                 }
+                                
                                 
                             }
                         })

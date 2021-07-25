@@ -134,7 +134,7 @@ app.post("/client",authenticateToken,(req,res)=>{
 
 //update client record
 app.put("/client",authenticateToken,(req,res)=>{
-  let data = {country:req.body.country,region:req.body.region,user:req.body.user,id:req.body.id,name:req.body.company_name,address:req.body.address,email:req.body.email,phone:req.body.phone,contact_person:req.body.contact_person,contact_email:req.body.contact_email,logo:req.body.logo};
+  let data = {tin:req.body.tin,code:req.body.code,country:req.body.country,region:req.body.region,user:req.body.user,id:req.body.id,name:req.body.company_name,address:req.body.address,email:req.body.email,phone:req.body.phone,contact_person:req.body.contact_person,contact_email:req.body.contact_email,logo:req.body.logo};
   db.updateClient(data)
   .then(result=>{
       res.status(201).json(result)
@@ -157,7 +157,7 @@ app.get("/clients",authenticateToken,(req,res)=>{
 
 //create customer
 app.post("/customer",authenticateToken,(req,res)=>{
-  let data = {region:req.body.region,user:req.body.user,name:req.body.company_name,address:req.body.address,email:req.body.email,phone:req.body.phone,contact_person:req.body.contact_person,contact_email:req.body.contact_email,country:req.body.country,db:req.body.db}; 
+  let data = {tin:req.body.tin,region:req.body.region,user:req.body.user,name:req.body.company_name,address:req.body.address,email:req.body.email,phone:req.body.phone,contact_person:req.body.contact_person,contact_email:req.body.contact_email,country:req.body.country,db:req.body.db}; 
   db.createCustomer(data)
   .then(result=>{
     res.status(201).json(result);
@@ -169,7 +169,7 @@ app.post("/customer",authenticateToken,(req,res)=>{
 //update customer
 app.put("/customer/:customer_id",authenticateToken,(req,res)=>{
   let customer_id = req.params.customer_id;
-  let data = {id:customer_id,region:req.body.region,user:req.body.user,name:req.body.name,address:req.body.address,email:req.body.email,phone:req.body.phone,contact_person:req.body.contact_person,contact_email:req.body.contact_email,country:req.body.country}; 
+  let data = {tin:req.body.tin,id:customer_id,region:req.body.region,user:req.body.user,name:req.body.name,address:req.body.address,email:req.body.email,phone:req.body.phone,contact_person:req.body.contact_person,contact_email:req.body.contact_email,country:req.body.country}; 
   db.updateCustomer(data)
     .then(result=>{
       res.status(201).json(result);
@@ -199,31 +199,6 @@ app.get("/status", (req, res) => {
       res.status(200).json({ error });
     });
 });
-
-//get customers
-app.get("/customers/:user_id", (req, res) => {
-  db.getCustomersList(req.params.user_id)
-    .then((customers) => {
-      res.status(200).json({ customers });
-    })
-    .catch((error) => {
-      res.status(200).json({ error });
-    });
-});
-
-//add customer
-app.post("/customer", (req, res) => {
-  let body = req.body;
-  
-});
-
-//update request
-app.post("/customer/:customerId", (req, res) => {
-  let customerId = req.params.customerId;
-  let data = req.body;
-  
-});
-
 
 //get supplier list
 app.get("/suppliers", (req, res) => {
