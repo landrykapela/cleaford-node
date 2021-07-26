@@ -16,6 +16,8 @@ app.use("/",(req, res, next) => {
   );
   next();
 });
+//static files
+app.use("/static",express.static("data"));
 app.use(express.json({limit:'50mb'}))
 // app.use(bodyParser.json());
 app.use(express.urlencoded({ extended: false,limit:'50mb' }));
@@ -52,7 +54,6 @@ app.get("/test-connection",authenticateToken,(req,res,next)=>{
         res.status(200).json({error})
     })
 })
-
 //create client db
 app.post("/initialize",authenticateToken,(req,res)=>{
   db.createClientSpace(req.body.user_id).then(result=>{
@@ -461,7 +462,9 @@ app.post("/user", (req, result) => {
       gross_volume:req.body.gross_volume,gross_volume_unit:req.body.gross_volume_unit,net_weight:req.body.net_weight,net_weight_unit:req.body.net_weight_unit,
       invoice_value:req.body.invoice_value,invoice_currency:req.body.invoice_currency,freight_charge:req.body.freight_charge,freight_currency:req.body.freight_currency,
       imdg_code:req.body.imdg_code,packing_type:req.body.packing_type,oil_type:req.body.oil_type,shipping_mark:req.body.shipping_mark,
-      user:req.body.user
+      user:req.body.user,
+      forwarder_code:req.body.forwarder_id,forwarder_id:req.body.forwarder_id,exporter_id:req.body.exporter_id,
+      instructions_file:req.body.instructions_file
   }
     db.createConsignment(data)
     .then(result=>{
@@ -482,9 +485,7 @@ app.post("/user", (req, result) => {
   })
  //update consignments
  app.put("/consignments/:user_id/:consignment_id",authenticateToken,(req,res)=>{
-   var data;
-   if(req.body.source == "data"){
-    data = {
+   var data = {
         cargo_classification:req.body.cargo_classification,
         place_of_destination:req.body.place_of_destination,
         place_of_delivery:req.body.place_of_delivery,
@@ -500,38 +501,22 @@ app.post("/user", (req, result) => {
         invoice_value:req.body.invoice_value,invoice_currency:req.body.invoice_currency,freight_charge:req.body.freight_charge,freight_currency:req.body.freight_currency,
         imdg_code:req.body.imdg_code,packing_type:req.body.packing_type,oil_type:req.body.oil_type,shipping_mark:req.body.shipping_mark,
         user:req.params.user_id,
-        id:req.params.consignment_id
+        id:req.params.consignment_id,
+        consignee_name:req.body.consignee_name,
+        consignee_phone:req.body.consignee_phone,
+        consignee_address:req.body.consignee_address,
+        consignee_tin:req.body.consignee_tin,
+        notify_name:req.body.notify_name,
+        notify_phone:req.body.notify_phone,
+        notify_address:req.body.notify_address,
+        notify_tin:req.body.notify_tin,
+        exporter_id:req.body.exporter_id,
+        forwarder_id:req.body.forwarder_id,
+        forwarder_code:req.body.forwarder_code,
+        instructions_file:req.body.instructions_file
     }
-  }
-  else if(req.body.source == "consignee"){
-    data = {
-      user:req.params.user_id,
-      id:req.params.consignment_id,
-      consignee_name:req.body.consignee_name,
-      consignee_phone:req.body.consignee_phone,
-      consignee_address:req.body.consignee_address,
-      consignee_tin:req.body.consignee_tin,
-      notify_name:req.body.notify_name,
-      notify_phone:req.body.notify_phone,
-      notify_address:req.body.notify_address,
-      notify_tin:req.body.notify_tin,
-    } 
-  }
-  else if(req.body.source=="exporter"){
-    data = {
-      user:req.params.user_id,
-      id:req.params.consignment_id,
-      exporter_id:req.body.exporter_id
-    }
-  }
-  else{
-    data ={
-      user:req.params.user_id,
-      id:req.params.consignment_id,
-      forwarder_id:req.body.forwarder_id,
-      forwarder_code:req.body.forwarder_code
-    }
-  }
+    if(!Object.values(data).includes(null)) data.status = 2;
+ 
   db.updateConsignment(data)
   .then(result=>{
     res.status(201).json(result);
@@ -551,6 +536,15 @@ app.post("/user", (req, result) => {
   })
   //get list of regions
   app.get("/utils/regions",(req,res)=>{
-    res.json(postcodes.getCityNames());
+    // res.json(postcodes.getCityNames());
+    db.getConsignmentFiles(1,5).then(result=>{
+      res.status(200).json(result);
+    })
+    .catch(e=>{
+      console.log("test: ",e);
+      res.status(200).json(e);
+    })
   })
+
+ 
 module.exports = app;
