@@ -3,7 +3,7 @@ const config = require("./config.json");
 const bcrypt = require("bcrypt");
 require("dotenv").config();
 const fs = require('fs');
-const { join } = require("path");
+const { join, resolve } = require("path");
 
 
 //mysql pool
@@ -32,7 +32,30 @@ const randomString = (length)=>{
 const getTimeStamp =()=>{
     return new Date(parseInt(Date.now()));
 }
-
+//check if table exists
+const doesTableExist = (tableName,userId)=>{
+    return new Promise((resolve,reject)=>{
+        this.getUser(userId)
+        .then(result=>{
+            if(result.data){
+                var pool = getClientPool(result.data);
+                pool.query("show tables",(e,r)=>{
+                    var key = "Tables_in_"+result.data.db;
+                    if(r && r.length > 0){
+                        var table = r.filter(i=>i[key].toLowerCase() == tableName.toLowerCase());
+                        if(table.length > 0) resolve(true);
+                    }
+                    else resolve(false);
+                })
+            }
+            else{
+                resolve(false);
+            }
+        }).catch(e=>{
+            reject(false)
+        })
+    })
+}
 //get client pool
 const getClientPool = (user)=>{
     let prefix = user.db.split("_")[1];
@@ -1613,7 +1636,50 @@ exports.updateConsignment =(data)=>{
     })
     
 }
+//update consignment status
+exports.updateConsignmentStatus = (userId,data)=>{
+    this.getUser(userId)
+    .then(result=>{
+        if(result.data){
+            var pool = getClientPool(result.data);
+            pool.getConnection((e,con)=>{
+                if(e){
+                    console.error(getTimeStamp()+" db.updateConsignmentStatus(): ",e);
+                    reject({code:1,msg:"Could not get connection to service",error:e});
+                }
+                else{
+                    var cid = data.id;
+                    delete data.id;
+                    var sql = "update consignments_tb set ";
+                    Object.keys(data).forEach((key,i)=>{
+                        sql += key+"=?, ";
+                    });
+                    sql += "date_modified=? where id=?";
+                    var values = Object.values(data);
+                    values.push(Date.now());
+                    values.push(cid);
 
+                    con.query(sql,values,(e,r)=>{
+                        if(e){
+                            console.error(getTimeStamp()+" db.updateConsignmentStatus(): ",e);
+                            reject({code:1,msg:"Could not update consignment",error:e});
+                        }
+                        else{
+                            con.release();
+                            this.getConsignments(userId)
+                            .then(result=>{
+                                resolve(result);
+                            })
+                            .catch(e=>{
+                                reject(e);
+                            })
+                        }
+                    })
+                }
+            })
+        }
+    })
+}
 //get consignment files
 exports.getConsignmentFiles = (refId,userId)=>{
     return new Promise((resolve,reject)=>{
@@ -1644,5 +1710,180 @@ exports.getAllConsignmentFiles = (userId)=>{
             console.error(getTimeStamp()+" db.getConsignmentFiles(): ",e);
             reject({code:1,msg:"You need to login with a valid account",error:e});
         })
+    })
+}
+
+//create booking
+exports.createBooking=(data)=>{
+    return new Promise((resolve,reject)=>{
+        var userId = data.user_id;
+        var bookingConfirmation = data.booking_comfirmation;
+        delete data.user_id;
+        delete data.booking_comfirmation;
+        if(data.terminal_carry_date != null) data.terminal_carry_date = Date.parse(data.terminal_carry_date);
+        this.getUser(userId).then(result=>{
+            if(result.data){
+                var pool = getClientPool(result.data);
+                pool.getConnection((e,con)=>{
+                    if(e){
+                        console.error(getTimeStamp()+" db.createBooking(): ",e);
+                        reject({code:1,msg:"Could not get connection to service",error:e});
+                    }
+                    else{
+                        doesTableExist("ship_bookings",userId)
+                        .then(exist=>{
+                            var keys = Object.keys(data);
+                            var values = Object.values(data);
+                            if(exist){
+                                var sql = "insert into ship_bookings (";
+                                
+                                keys.forEach(key=>{
+                                   sql += key+", "
+                                })
+                                sql += "date_created bigint) values(?) on duplicate key update vessel_name=values(vessel_name),shipping_line=values(shipping_line),mbl_number-values(mbl_number), bl_type=values(bl_type),booking_no=values(booking_no)";
+                                values.push(Date.now());
+                                con.query(sql,[values],(e,r)=>{
+                                    if(e){
+                                        console.error(getTimeStamp()+" db.createBooking(): ",e);
+                                        reject({code:1,msg:"Could not update record",error:e});
+                                
+                                    }
+                                    else{
+                                        if(bookingConfirmation != null){
+                                            saveFile(bookingConfirmation,{user:userId,
+                                                target:"ship_bookings",name:"booking comfirmation",refer_id:data.cid})
+                                            .then(fileId=>{
+                                                this.getBookings(userId)
+                                                .then(result=>{
+                                                    con.release();
+                                                    this.updateConsignmentStatus(userId,{status:3,id:data.cid})
+                                                    .then(rs=>{
+                                                        resolve({code:0,msg:"successful",data:{consignments:rs.data,bookings:result.data}});
+                                                    })
+                                                    .catch(e=>{
+                                                        resolve(result);
+                                                    })
+                                                    
+                                                })
+                                                .catch(e=>{
+                                                    reject(e);
+                                                })
+                                            })
+                                            .catch(e=>{
+                                                reject(e);
+                                            })
+                                            
+                                        }
+                                    }
+                                })
+                                
+                            }
+                            else{
+                                var createSql = "create table ship_bookings (";
+                                keys.forEach(key=>{
+                                    if(key.toLowerCase() == "cid") createSql += key+ " int(10) not null unique, ";
+                                    else if(key.toLowerCase() == "terminal_carry_date") createSql += key+" bigint, ";
+                                    else createSql += key +" varchar(50), ";
+                                });
+                                createSql += "date_created bigint)";
+                                con.query(createSql,(e,r)=>{
+                                    if(e){
+                                        console.error(getTimeStamp()+" db.createBooking(): ",e);
+                                        reject({code:1,msg:"Could not create shipping table",error:e});
+                                    }
+                                    else{
+                                        var sql = "insert into ship_bookings (";
+                                
+                                        keys.forEach(key=>{
+                                           sql += key+", "
+                                        })
+                                        sql += "date_created bigint) values(?) on duplicate key update vessel_name=values(vessel_name),shipping_line=values(shipping_line),mbl_number-values(mbl_number), bl_type=values(bl_type),booking_no=values(booking_no)";
+                                        values.push(Date.now());
+                                        con.query(sql,[values],(e,r)=>{
+                                            if(e){
+                                                console.error(getTimeStamp()+" db.createBooking(): ",e);
+                                                reject({code:1,msg:"Could not update record",error:e});
+                                        
+                                            }
+                                            else{
+                                                if(bookingConfirmation != null){
+                                                    saveFile(bookingConfirmation,{user:userId,
+                                                        target:"ship_bookings",name:"booking comfirmation",refer_id:data.cid})
+                                                    .then(fileId=>{
+                                                        this.getBookings(userId)
+                                                        .then(result=>{
+                                                            con.release();
+                                                            this.updateConsignmentStatus(userId,{status:3,id:data.cid})
+                                                            .then(rs=>{
+                                                                resolve({code:0,msg:"successful",data:{consignments:rs.data,bookings:result.data}});
+                                                            })
+                                                            .catch(e=>{
+                                                                resolve(result);
+                                                            })
+                                                        })
+                                                        .catch(e=>{
+                                                            reject(e);
+                                                        })
+                                                    })
+                                                    .catch(e=>{
+                                                        reject(e);
+                                                    })
+                                                    
+                                                }
+                                            }
+                                        }) 
+                                    }
+                                })
+                            }
+                        })
+                        .catch(e=>{
+    
+                        })
+                    }
+                })
+            }
+        })
+        .catch(e=>{
+            console.error(getTimeStamp()+" db.createBooking(): ",e);
+            reject({code:1,msg:"You must be logged in to access this resource",error:e});
+        })
+    })
+   
+}
+
+//get bookings
+exports.getBookings = (userId)=>{
+    this.getUser(userId)
+    .then(result=>{
+        if(result.data){
+            var pool = getClientPool(result.data);
+            var sql = "select * from ship_bookings";
+            pool.getConnection((e,con)=>{
+                if(e){
+                    console.error(getTimeStamp()+" db.getBookings(): ",e);
+                    reject({code:1,msg:"Could not get connection to service",error:e}); 
+                }
+                else{
+                    con.query(sql,(e,r)=>{
+                        if(e){
+                            console.error(getTimeStamp()+" db.createBooking(): ",e);
+                            reject({code:1,msg:"Could not get bookings",error:e});
+                        }
+                        else{
+                            con.release();
+                            resolve({code:0,msg:"successful",data:r});
+                        }
+                    })
+                }
+            })
+        }
+        else{
+            console.error(getTimeStamp()+" db.getBookings(): ",e);
+            reject({code:1,msg:"You must be logged in to access this resource",error:e});
+        }
+    })
+    .catch(e=>{
+        console.error(getTimeStamp()+" db.getBookings(): ",e);
+        reject({code:1,msg:"Invalid user",error:e});
     })
 }
