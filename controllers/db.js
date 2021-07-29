@@ -43,7 +43,12 @@ const doesTableExist = (tableName,userId)=>{
                     var key = "Tables_in_"+result.data.db;
                     if(r && r.length > 0){
                         var table = r.filter(i=>i[key].toLowerCase() == tableName.toLowerCase());
-                        if(table.length > 0) resolve(true);
+                        if(table.length > 0) {
+                            resolve(true);
+                        }
+                        else{
+                            resolve(false);
+                        }
                     }
                     else resolve(false);
                 })
@@ -72,19 +77,19 @@ const getClientPool = (user)=>{
 
 //save base64 to file
 const saveFile = (encodedData,options)=>{
+    console.log("trying to save file...");
     return new Promise((resolve,reject)=>{
-        console.log("saving file...",options.user);
         if(options == null || options == undefined) reject(false);
         if(encodedData == null || encodedData == undefined)  reject(false);
         if(options.user == null || options.user == undefined)  reject(false);
         if(options.refer_id == null || options.refer_id == undefined)  reject(false);
         if(options.target == null || options.target == undefined)  reject(false);
     
-        console.log("checking user...");
+        console.log("cheking user");
         this.getUser(options.user)
             .then(result=>{
                 if(result.data){
-                    console.log("user ok...");
+                    console.log("user ok");
                     var pool= getClientPool(result.data);
                     var parts = encodedData.split(";base64,");
                     if(typeof parts == "object" && parts.length > 1){
@@ -93,35 +98,37 @@ const saveFile = (encodedData,options)=>{
                         var name = randomString(10);
                         var filename = name+ext;
                         if(options.name) name = options.name; 
-                        console.log("writing to disk...");
+                        console.log("writing file...");
                         fs.writeFile("data/"+filename,data,{encoding:'base64'},(e)=>{
                             if(e) {
-                            console.log("error writing disk...",e);
+                            console.error(getTimeStamp()+" db.saveFile() writing error: ",e);
                             reject(false);
                             }
                             else{
-                            console.log("updating database...");
+                                console.log("creating db record of file");
                                 var sql = "insert into user_files (name,refer_id,target,filename) values(?) ";
                                 var values = [name,options.refer_id,options.target,filename];
                                 pool.getConnection((e,con)=>{
                                     if(e){
+                                        console.log("no connection to db; deleting file...");
                                         fs.unlink("data/"+filename,(e)=>{
-                                            if(e) console.error(getTimeStamp()+" saveFile(): ",e);
+                                            if(e) console.error(getTimeStamp()+" saveFile() deleting: ",e);
                                         })
-                                        console.error(getTimeStamp()+" saveFile(): ",e);
+                                        console.error(getTimeStamp()+" saveFile() no connection: ",e);
                                         reject(false);
                                     }
                                     else{
                                         con.query(sql,[values],(e,r)=>{
                                             if(e){
+                                                console.log("error inserting record; deleting file...");
                                                 fs.unlink("data/"+filename,(e)=>{
-                                                    if(e) console.error(getTimeStamp()+" saveFile(): ",e);
+                                                    if(e) console.error(getTimeStamp()+" saveFile() deleting: ",e);
                                                 })
-                                                console.error(getTimeStamp()+" saveFile(): ",e);
+                                                console.error(getTimeStamp()+" saveFile() sql: ",e);
                                                 reject(false);
                                             }
                                             else{
-                                                console.log("successful...");
+                                                console.log("success");
                                                 resolve(r.insertId);
                                             }
                                         })
@@ -131,12 +138,12 @@ const saveFile = (encodedData,options)=>{
                         });
                     }
                     else{
-                        console.log("bad encoded file");
+                        console.log("bad data");
                         reject(false);
                     }
                 }
                 else{
-                    console.log("could not find user...");
+                    console.log("no user data");
                     reject(false);
                 }
             })
@@ -145,7 +152,6 @@ const saveFile = (encodedData,options)=>{
                 reject(false);
             }) 
           
-        reject(false);
     })
    
 }
@@ -659,7 +665,7 @@ exports.signUp =(email,password,token)=>{
             }
         })
         .catch(e=>{
-            console.log("db.signUp(): ",e);
+            console.error(getTimeStamp()+" db.signUp(): ",e);
             reject({code:1,msg:"Could not retrieve user "+email,error:e});
         })
         
@@ -684,7 +690,7 @@ exports.signIn = (email,password)=>{
                                 resolve({code:0,msg:"successful",data:user});
                             })
                             .catch(e=>{
-                                console.log("e: ",e);
+                                console.error(getTimeStamp()+"signIn(): ",e);
                                 resolve({code:0,msg:"successful",data:user});
                             })
                             
@@ -1384,7 +1390,7 @@ exports.createConsignment =(data)=>{
                                                                         
                                                                 })  
                                                                 .catch(notDone=>{
-                                                                    console.log("saveFile(): Could not save file");
+                                                                    console.error(getTimeStamp()+" saveFile(): Could not save file");
                                                                     reject({code:1,msg:"Could not save file",error:e});
                                                                 })
                                                             }
@@ -1439,7 +1445,7 @@ exports.createConsignment =(data)=>{
                                                                 
                                                         })  
                                                         .catch(notDone=>{
-                                                            console.log("saveFile(): Could not save file");
+                                                            console.error(getTimeStamp()+" saveFile(): Could not save file");
                                                             reject({code:1,msg:"Could not save file",error:e});
                                                         })
                                                     }
@@ -1495,19 +1501,36 @@ exports.getConsignments = (userId)=>{
                                         let i = c;
                                         i.files = result.data.filter(d=>d.refer_id == c.id);
                                         return i;
+                                    });
+                                    let consignmentsWithShipping = consignments;
+                                    this.getBookings(userId)
+                                    .then(result=>{
+                                        consignmentsWithShipping = consignments.map(c=>{
+                                            let cs = c;
+                                            cs.shipping_details = result.data.filter(sd=>sd.cid == c.id)[0];
+                                            return cs;
+                                        })
+                                    })
+                                    .catch(e=>{
+                                        console.error(getTimeStamp()+" db.getConsignments(): ",e);
+                                    })
+                                    .finally(()=>{
+                                        resolve({code:0,"msg":"successful",data:consignmentsWithShipping});
                                     })
 
                                 }).catch(e=>{
-
-                                }).finally(()=>{
-                                    console.log("consig: ",consignments);
-                                resolve({code:0,"msg":"successful",data:consignments});
+                                    console.error(getTimeStamp()+" db.getConsignments(): ",e);
+                                    reject({code:1,msg:"Could not get consignment fiels",error:e});
                                 })
                                
                             }
                         })
                     }
                 })
+            }
+            else{
+                console.error(getTimeStamp()+" db.getConsignments() :",result.data);
+                reject({code:1,msg:"Invalid user"})
             }
         })
         .catch(e=>{
@@ -1562,7 +1585,6 @@ exports.updateConsignment =(data)=>{
                                         reject({code:1,msg:"Could not update consignment record",error:e});
                                     }
                                     else{
-                                        console.log("update: ",r);
                                         con.release();
                                         this.getConsignments(userId)
                                         .then(result=>{
@@ -1577,8 +1599,8 @@ exports.updateConsignment =(data)=>{
                                 })
                             })
                             .catch(notDone=>{
-                                console.log("saveFile(): Could not save file");
-                                reject({code:1,msg:"Could not save file",error:e});
+                                console.error(getTimeStamp()+" saveFile(): Could not save file");
+                                reject({code:1,msg:"Could not save file"});
                             })
                            
                         }
@@ -1638,47 +1660,50 @@ exports.updateConsignment =(data)=>{
 }
 //update consignment status
 exports.updateConsignmentStatus = (userId,data)=>{
-    this.getUser(userId)
-    .then(result=>{
-        if(result.data){
-            var pool = getClientPool(result.data);
-            pool.getConnection((e,con)=>{
-                if(e){
-                    console.error(getTimeStamp()+" db.updateConsignmentStatus(): ",e);
-                    reject({code:1,msg:"Could not get connection to service",error:e});
-                }
-                else{
-                    var cid = data.id;
-                    delete data.id;
-                    var sql = "update consignments_tb set ";
-                    Object.keys(data).forEach((key,i)=>{
-                        sql += key+"=?, ";
-                    });
-                    sql += "date_modified=? where id=?";
-                    var values = Object.values(data);
-                    values.push(Date.now());
-                    values.push(cid);
-
-                    con.query(sql,values,(e,r)=>{
-                        if(e){
-                            console.error(getTimeStamp()+" db.updateConsignmentStatus(): ",e);
-                            reject({code:1,msg:"Could not update consignment",error:e});
-                        }
-                        else{
-                            con.release();
-                            this.getConsignments(userId)
-                            .then(result=>{
-                                resolve(result);
-                            })
-                            .catch(e=>{
-                                reject(e);
-                            })
-                        }
-                    })
-                }
-            })
-        }
+    return new Promise((resolve,reject)=>{
+        this.getUser(userId)
+        .then(result=>{
+            if(result.data){
+                var pool = getClientPool(result.data);
+                pool.getConnection((e,con)=>{
+                    if(e){
+                        console.error(getTimeStamp()+" db.updateConsignmentStatus(): ",e);
+                        reject({code:1,msg:"Could not get connection to service",error:e});
+                    }
+                    else{
+                        var cid = data.id;
+                        delete data.id;
+                        var sql = "update consignments_tb set ";
+                        Object.keys(data).forEach((key,i)=>{
+                            sql += key+"=?, ";
+                        });
+                        sql += "date_modified=? where id=?";
+                        var values = Object.values(data);
+                        values.push(Date.now());
+                        values.push(cid);
+    
+                        con.query(sql,values,(e,r)=>{
+                            if(e){
+                                console.error(getTimeStamp()+" db.updateConsignmentStatus(): ",e);
+                                reject({code:1,msg:"Could not update consignment",error:e});
+                            }
+                            else{
+                                con.release();
+                                this.getConsignments(userId)
+                                .then(result=>{
+                                    resolve(result);
+                                })
+                                .catch(e=>{
+                                    reject(e);
+                                })
+                            }
+                        })
+                    }
+                })
+            }
+        })
     })
+   
 }
 //get consignment files
 exports.getConsignmentFiles = (refId,userId)=>{
@@ -1717,10 +1742,9 @@ exports.getAllConsignmentFiles = (userId)=>{
 exports.createBooking=(data)=>{
     return new Promise((resolve,reject)=>{
         var userId = data.user_id;
-        var bookingConfirmation = data.booking_comfirmation;
+        var bookingConfirmation = data.booking_confirmation;
         delete data.user_id;
-        delete data.booking_comfirmation;
-        if(data.terminal_carry_date != null) data.terminal_carry_date = Date.parse(data.terminal_carry_date);
+        delete data.booking_confirmation;
         this.getUser(userId).then(result=>{
             if(result.data){
                 var pool = getClientPool(result.data);
@@ -1740,7 +1764,7 @@ exports.createBooking=(data)=>{
                                 keys.forEach(key=>{
                                    sql += key+", "
                                 })
-                                sql += "date_created bigint) values(?) on duplicate key update vessel_name=values(vessel_name),shipping_line=values(shipping_line),mbl_number-values(mbl_number), bl_type=values(bl_type),booking_no=values(booking_no)";
+                                sql += "date_created) values(?) on duplicate key update vessel_name=values(vessel_name),shipping_line=values(shipping_line),mbl_number=values(mbl_number), bl_type=values(bl_type),booking_no=values(booking_no)";
                                 values.push(Date.now());
                                 con.query(sql,[values],(e,r)=>{
                                     if(e){
@@ -1751,14 +1775,14 @@ exports.createBooking=(data)=>{
                                     else{
                                         if(bookingConfirmation != null){
                                             saveFile(bookingConfirmation,{user:userId,
-                                                target:"ship_bookings",name:"booking comfirmation",refer_id:data.cid})
+                                                target:"ship_bookings",name:"ship booking",refer_id:data.cid})
                                             .then(fileId=>{
                                                 this.getBookings(userId)
                                                 .then(result=>{
                                                     con.release();
                                                     this.updateConsignmentStatus(userId,{status:3,id:data.cid})
                                                     .then(rs=>{
-                                                        resolve({code:0,msg:"successful",data:{consignments:rs.data,bookings:result.data}});
+                                                        resolve({code:0,msg:"successful",data:rs.data});
                                                     })
                                                     .catch(e=>{
                                                         resolve(result);
@@ -1774,6 +1798,24 @@ exports.createBooking=(data)=>{
                                             })
                                             
                                         }
+                                        else{
+                                            this.getBookings(userId)
+                                                .then(result=>{
+                                                    con.release();
+                                                    this.updateConsignmentStatus(userId,{date_modified:Date.now(),id:data.cid})
+                                                    .then(rs=>{
+                                                        resolve({code:0,msg:"successful",data:rs.data});
+                                                    })
+                                                    .catch(e=>{
+                                                        resolve(result);
+                                                    })
+                                                    
+                                                })
+                                                .catch(e=>{
+                                                    reject(e);
+                                                })
+                                            // resolve({code:0,msg:"successful",data:{consignments:rs.data,bookings:result.data}});
+                                        }
                                     }
                                 })
                                 
@@ -1785,7 +1827,7 @@ exports.createBooking=(data)=>{
                                     else if(key.toLowerCase() == "terminal_carry_date") createSql += key+" bigint, ";
                                     else createSql += key +" varchar(50), ";
                                 });
-                                createSql += "date_created bigint)";
+                                createSql += "date_created bigint,date_modified bigint)";
                                 con.query(createSql,(e,r)=>{
                                     if(e){
                                         console.error(getTimeStamp()+" db.createBooking(): ",e);
@@ -1797,7 +1839,8 @@ exports.createBooking=(data)=>{
                                         keys.forEach(key=>{
                                            sql += key+", "
                                         })
-                                        sql += "date_created bigint) values(?) on duplicate key update vessel_name=values(vessel_name),shipping_line=values(shipping_line),mbl_number-values(mbl_number), bl_type=values(bl_type),booking_no=values(booking_no)";
+                                        sql += "date_created bigint,date_modified) values(?) on duplicate key update vessel_name=values(vessel_name),shipping_line=values(shipping_line),mbl_number-values(mbl_number), bl_type=values(bl_type),booking_no=values(booking_no)";
+                                        values.push(Date.now());
                                         values.push(Date.now());
                                         con.query(sql,[values],(e,r)=>{
                                             if(e){
@@ -1808,17 +1851,18 @@ exports.createBooking=(data)=>{
                                             else{
                                                 if(bookingConfirmation != null){
                                                     saveFile(bookingConfirmation,{user:userId,
-                                                        target:"ship_bookings",name:"booking comfirmation",refer_id:data.cid})
+                                                        target:"ship_bookings",name:"booking confirmation",refer_id:data.cid})
                                                     .then(fileId=>{
                                                         this.getBookings(userId)
                                                         .then(result=>{
                                                             con.release();
                                                             this.updateConsignmentStatus(userId,{status:3,id:data.cid})
                                                             .then(rs=>{
-                                                                resolve({code:0,msg:"successful",data:{consignments:rs.data,bookings:result.data}});
+                                                                resolve({code:0,msg:"successful",data:rs.data});
                                                             })
                                                             .catch(e=>{
-                                                                resolve(result);
+                                                                console.error(getTimeStamp()+" db.createBooking(): ",e);
+                                                                reject({code:1,msg:"Could not update consignment status",error:e});
                                                             })
                                                         })
                                                         .catch(e=>{
@@ -1830,6 +1874,17 @@ exports.createBooking=(data)=>{
                                                     })
                                                     
                                                 }
+                                                else{
+                                                    con.release();
+                                                    this.getConsignments(userId)
+                                                    .then(rs=>{
+                                                        resolve({code:0,msg:"successful",data:rs.data});
+                                                    })
+                                                    .catch(e=>{
+                                                        resolve(result);
+                                                    })
+                                                       
+                                                }
                                             }
                                         }) 
                                     }
@@ -1837,7 +1892,8 @@ exports.createBooking=(data)=>{
                             }
                         })
                         .catch(e=>{
-    
+                            console.error(getTimeStamp()+" db.createBooking(): ",e);
+                            reject({code:1,msg:"Could not verify table",error:e});
                         })
                     }
                 })
@@ -1850,40 +1906,150 @@ exports.createBooking=(data)=>{
     })
    
 }
+//update booking
+exports.updateBooking=(data)=>{
+    var userId = data.user_id;
+    var file= data.booking_confirmation;
+    var bid = data.id;
+    delete data.user_id;
+    delete data.id;
+    delete data.booking_confirmation;
 
-//get bookings
-exports.getBookings = (userId)=>{
-    this.getUser(userId)
-    .then(result=>{
-        if(result.data){
-            var pool = getClientPool(result.data);
-            var sql = "select * from ship_bookings";
-            pool.getConnection((e,con)=>{
-                if(e){
-                    console.error(getTimeStamp()+" db.getBookings(): ",e);
-                    reject({code:1,msg:"Could not get connection to service",error:e}); 
+    return new Promise((resolve,reject)=>{
+        this.getUser(userId)
+        .then(result=>{
+            if(result.data){
+                var pool = getClientPool(result.data);
+                var sql = "update ship_bookings set ";
+                var keys = Object.keys(data);
+                var values = Object.values(data);
+
+                keys.forEach(key=>{
+                    sql += key +"=?, ";
+                });
+                sql += "date_modified=? where id=?";
+                values.push(Date.now());
+                values.push(bid);
+                if(file != null && file != undefined){
+                    saveFile(file,{user:userId,refer_id:data.cid,name:"ship booking",target:"ship_bookings"})
+                    .then(fileId=>{
+                        console.log("saved file: ",fileId);
+                        pool.getConnection((e,con)=>{
+                            if(e){
+                                console.error(getTimeStamp()+" db.updateBooking(): ",e);
+                                reject({code:1,msg:"Could not save file",error:e});
+                            }
+                            else{
+                                con.query(sql,values,(e,r)=>{
+                                    if(e){
+                                        console.error(getTimeStamp()+" db.updateBooking(): ",e);
+                                        reject({code:1,msg:"Could not save file",error:e});
+                                    }
+                                    else{
+                                        console.log("update query: ",r);
+                                        con.release();
+                                        this.updateConsignmentStatus(userId,{status:3,id:data.cid})
+                                            .then(rs=>{
+                                                resolve({code:0,msg:"successful",data:rs.data});
+                                            })
+                                            .catch(e=>{
+                                                console.error(getTimeStamp()+" db.updateBooking(): ",e);
+                                                reject({code:1,msg:"Could not update consignment status",error:e});
+                                            })
+                                       
+                                    }
+                                })
+                            }
+                        })
+                    })
+                    .catch(e=>{
+                        console.error(getTimeStamp()+" db.updateBooking()2: ",e);
+                        reject({code:1,msg:"Could not save file",error:e});
+                    })
                 }
                 else{
-                    con.query(sql,(e,r)=>{
+                    pool.getConnection((e,con)=>{
                         if(e){
-                            console.error(getTimeStamp()+" db.createBooking(): ",e);
-                            reject({code:1,msg:"Could not get bookings",error:e});
+                            console.error(getTimeStamp()+" db.updateBooking(): ",e);
+                            reject({code:1,msg:"Could not save file",error:e});
                         }
                         else{
-                            con.release();
-                            resolve({code:0,msg:"successful",data:r});
+                            con.query(sql,values,(e,r)=>{
+                                if(e){
+                                    console.error(getTimeStamp()+" db.updateBooking(): ",e);
+                                    reject({code:1,msg:"Could not save file",error:e});
+                                }
+                                else{
+                                    con.release();
+                                    this.getBookings(userId)
+                                    .then(result=>{
+                                        this.getConsignments(userId)
+                                            .then(rs=>{
+                                                resolve({code:0,msg:"successful",data:rs.data});
+                                            })
+                                            .catch(e=>{
+                                                console.error(getTimeStamp()+" db.updateBooking(): ",e);
+                                                reject({code:1,msg:"Could not get consignment list",error:e});
+                                            })
+                                    })
+                                    .catch(e=>{
+                                        console.error(getTimeStamp()+" db.updateBooking(): ",e);
+                                        reject({code:1,msg:"Could not update record",error:e});
+                                    })
+                                }
+                            })
                         }
                     })
                 }
-            })
-        }
-        else{
+            }
+            else{
+                console.error(getTimeStamp()+" db.updateBooking(): ","Invalid user");
+                reject({code:1,msg:"Invalid user"});
+            }
+        })
+        .catch(er=>{
+            console.error(getTimeStamp()+" db.updateBooking(): ",er);
+            reject({code:1,msg:"Could not verify user credentials",error:er});
+        })
+    })
+
+}
+//get bookings
+exports.getBookings = (userId)=>{
+    return new Promise((resolve,reject)=>{
+        this.getUser(userId)
+        .then(result=>{
+            if(result.data){
+                var pool = getClientPool(result.data);
+                var sql = "select * from ship_bookings";
+                pool.getConnection((e,con)=>{
+                    if(e){
+                        console.error(getTimeStamp()+" db.getBookings(): ",e);
+                        reject({code:1,msg:"Could not get connection to service",error:e}); 
+                    }
+                    else{
+                        con.query(sql,(e,r)=>{
+                            if(e){
+                                console.error(getTimeStamp()+" db.createBooking(): ",e);
+                                reject({code:1,msg:"Could not get bookings",error:e});
+                            }
+                            else{
+                                con.release();
+                                resolve({code:0,msg:"successful",data:r});
+                            }
+                        })
+                    }
+                })
+            }
+            else{
+                console.error(getTimeStamp()+" db.getBookings(): ",e);
+                reject({code:1,msg:"You must be logged in to access this resource",error:e});
+            }
+        })
+        .catch(e=>{
             console.error(getTimeStamp()+" db.getBookings(): ",e);
-            reject({code:1,msg:"You must be logged in to access this resource",error:e});
-        }
+            reject({code:1,msg:"Invalid user",error:e});
+        })
     })
-    .catch(e=>{
-        console.error(getTimeStamp()+" db.getBookings(): ",e);
-        reject({code:1,msg:"Invalid user",error:e});
-    })
+   
 }

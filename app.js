@@ -530,7 +530,7 @@ app.post("/user", (req, result) => {
 app.post("/booking/:userId",authenticateToken,(req,res)=>{
   var data = {user_id:req.params.userId,cid:req.body.cid,mbl_number:req.body.mbl_number,shipping_line:req.body.shipping_line,vessel_name:req.body.vessel_name,
     booking_no:req.body.booking_no,bl_type:req.body.bl_type,
-    terminal_carry_date:req.body.terminal_carry_date,booking_comfirmation:req.body.booking_comfirmation
+    terminal_carry_date:req.body.terminal_carry_date,booking_confirmation:req.body.booking_confirmation
   }
   db.createBooking(data).then(result=>{
     res.status(201).json(result);
@@ -540,6 +540,19 @@ app.post("/booking/:userId",authenticateToken,(req,res)=>{
   })
 })
 
+//update booking
+app.put("/booking/:userId",(req,res)=>{
+  var data = {id:req.body.id,user_id:req.params.userId,cid:req.body.cid,mbl_number:req.body.mbl_number,shipping_line:req.body.shipping_line,vessel_name:req.body.vessel_name,
+    booking_no:req.body.booking_no,bl_type:req.body.bl_type,
+    terminal_carry_date:req.body.terminal_carry_date,booking_confirmation:req.body.booking_confirmation
+  }
+  db.updateBooking(data).then(result=>{
+    res.status(201).json(result);
+  })
+  .catch(e=>{
+    res.status(200).json(e);
+  })
+})
 app.get("/booking/:userId",authenticateToken,(req,res)=>{
   db.getBookings(req.params.userId)
   .then(result=>{
