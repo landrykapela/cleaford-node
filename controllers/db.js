@@ -1562,7 +1562,7 @@ exports.updateConsignment =(data)=>{
                         if(instructions_file != null){
                             saveFile(instructions_file,{user:userId,target:'consignments_tb',refer_id:consId,name:"shipping instructions"})
                             .then(fileId=>{
-                                data.instructions_file = fileId; 
+                                // data.instructions_file = fileId; 
                                 var updateSql = "update consignments_tb set ";
                                 var now = Date.now();
                                 var keys = Object.keys(data);
