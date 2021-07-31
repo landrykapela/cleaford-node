@@ -765,7 +765,6 @@ exports.saveToken = (token,email)=>{
         })
     })
 }
-
 //rolses
 exports.createFeature = (data)=>{
     return new Promise((resolve,reject)=>{
@@ -1210,7 +1209,6 @@ exports.updateClientRole = (data)=>{
         })
     })
 }
-
 //get payment terms
 exports.getPaymentTerms = ()=>{
     return new Promise((resolve,reject)=>{
@@ -1719,8 +1717,30 @@ exports.getAllConsignmentFiles = (userId)=>{
         this.getUser(userId).then(result=>{
             if(result.data){
                 var pool = getClientPool(result.data);
-                pool.query("select * from user_files",(e,r)=>{
-                    resolve({code:0,msg:"Successful",data:r});
+                doesTableExist("user_files",userId).then(exist=>{
+                    pool.getConnection((e,con)=>{
+                        if(e){
+                            console.error(getTimeStamp()+" db.getConsignmentFiles(): ",e);
+                            reject({code:1,msg:"Could not get connection to service",error:e});
+                        }
+                        else{
+                            con.query("select * from user_files",(e,r)=>{
+                                con.release();
+                                if(e){
+                                    console.error(getTimeStamp()+" db.getConsignmentFiles(): ",e);
+                                    reject({code:1,msg:"Could not get consignment files",error:e});
+                                }
+                                else{
+                                    resolve({code:0,msg:"Successful",data:r});
+                                }
+                            })
+                        }
+                    })
+                    
+                })
+                .catch(e=>{
+                    console.error(getTimeStamp()+" db.getConsignmentFiles(): ",e);
+                    reject({code:1,msg:"Could not verify user files",error:e});
                 })
             }
         }).catch(e=>{
@@ -2020,15 +2040,27 @@ exports.getBookings = (userId)=>{
                         reject({code:1,msg:"Could not get connection to service",error:e}); 
                     }
                     else{
-                        con.query(sql,(e,r)=>{
-                            if(e){
-                                console.error(getTimeStamp()+" db.createBooking(): ",e);
-                                reject({code:1,msg:"Could not get bookings",error:e});
+                        doesTableExist("ship_bookings",userId).then(exist=>{
+                            if(exist){
+                                con.query(sql,(e,r)=>{
+                                    if(e){
+                                        console.error(getTimeStamp()+" db.createBooking(): ",e);
+                                        reject({code:1,msg:"Could not get bookings",error:e});
+                                    }
+                                    else{
+                                        con.release();
+                                        resolve({code:0,msg:"successful",data:r});
+                                    }
+                                })
                             }
                             else{
                                 con.release();
-                                resolve({code:0,msg:"successful",data:r});
+                                resolve({code:0,msg:"successful",data:[]});
                             }
+                        })
+                        .catch(e=>{
+                            console.error(getTimeStamp()+" db.getBookings(): ",e);
+                            reject({code:1,msg:"Could not verify ship bookings table",error:e});
                         })
                     }
                 })
@@ -2198,16 +2230,29 @@ exports.getContainers = (userId)=>{
                     reject({code:1,msg:"Could not get connection to service",error:e});
                 }
                 else{
-                    con.query("select * from container_bookings",(e,r)=>{
-                        if(e){
-                            console.error(getTimeStamp()+" db.getContainers(): ",e);
-                            reject({code:1,msg:"Could not retrieve container data",error:e});
+                    doesTableExist("container_bookings",userId).then(exist=>{
+                        con.release();
+                        if(exist){
+                            con.query("select * from container_bookings",(e,r)=>{
+                                if(e){
+                                    console.error(getTimeStamp()+" db.getContainers(): ",e);
+                                    reject({code:1,msg:"Could not retrieve container data",error:e});
+                                }
+                                else{
+                                    con.release();
+                                    resolve({code:0,msg:"successful",data:r});
+                                }
+                            })
                         }
                         else{
-                            con.release();
-                            resolve({code:0,msg:"successful",data:r});
+                            resolve({code:0,msg:"successful",data:[]});
                         }
                     })
+                    .catch(e=>{
+                        con.release();
+                        reject({code:1,msg:"Could not verify container table",error:e});
+                    })
+                    
                 }
             })
         })
