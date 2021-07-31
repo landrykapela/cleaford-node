@@ -5,7 +5,8 @@ require("dotenv").config();
 const fs = require('fs');
 const { join, resolve } = require("path");
 
-
+//consignment status
+const CONSIGNMENT_STATUS = [{id:1,status:"Pending Ship Booking"},{id:2,status:"Pending ODG Certificates"},{id:3,status:"Pending ODG Certificates"},{id:4,status:"Pending Custom Release"},{id:5,status:"Pending Loading Permission"},{id:6,status:"Pending Export Permit"},{id:7,status:"Pending Bill of Lading"},{id:8,status:"Pending Bill of Lading"},{id:9,status:"Completed"},{id:10,status:"Closed"}]
 //mysql pool
 const pool = mysql.createPool({
     socketPath: config.socket,
@@ -17,6 +18,7 @@ const pool = mysql.createPool({
     connectionLimit: 10,
     queueLimit: 0,
   });
+
 
 //generate random string
 const randomString = (length)=>{
@@ -1307,40 +1309,36 @@ exports.createConsignment =(data)=>{
                         reject({code:1,msg:"Could not get connection to service",error:e});
                     }
                     else{
+                        var keys = Object.keys(data);
+                        var values = Object.values(data);
                         //check if table exists
                         doesTableExist("consignments_tb",data.user)
                         .then(exists=>{
                             if(exists){
-                                var insertSql = "insert into consignments_tb (date_created,date_modified,";
-                                var now = Date.now();
-                                var val = "values ("+now+","+now+",";
-                                keys.forEach((key,index)=>{
-                                    if(index < keys.length -1){
-                                        insertSql += key +", ";
-                                        if(typeof values[index] == "string") val += "'"+values[index]+"',";
-                                        else val += values[index]+",";
-                                    }
-                                    else{
-                                        insertSql += key+") ";
-                                        if(typeof values[index] == "string") val += "'"+values[index]+"')";
-                                        else val += values[index]+")";
-                                    }
+                                var insertSql = "insert into consignments_tb (";
+                                keys.forEach((key)=>{
+                                    insertSql += key +", ";
                                 });
-                                insertSql += val;
-                                con.query(insertSql,values,(e,r)=>{
+                                insertSql += "date_created, date_modified,status) values (?) ";
+                                var now = Date.now();
+                                values.push(now);
+                                values.push(now);
+                                values.push(1);
+                                con.query(insertSql,[values],(e,r)=>{
                                     if(e){
                                         console.error(getTimeStamp()+" db.createConsignment(): ",e);
                                         reject({code:1,msg:"Could not create consignment record",error:e});
                                     }
                                     else{
+                                        con.release();
                                         if(r.insertId){
                                             //record successfully inserted
-                                            if(instructions_file != null){
+                                            if(instructions_file != null && instructions_file != undefined){
                                                 //save file if provided
                                                 saveFile(instructions_file,{user:data.user,target:'consignments_tb',refer_id:r.insertId,name:"shipping instructions"})
                                                 .then(fileId=>{
                                                     //consignment updated with file info
-                                                    con.release();
+                                                    
                                                     this.getConsignments(data.user)
                                                     .then(result=>{
                                                         resolve({code:0,msg:"Successful",data:result.data});
@@ -1355,6 +1353,16 @@ exports.createConsignment =(data)=>{
                                                     console.error(getTimeStamp()+" saveFile(): Could not save file");
                                                     reject({code:1,msg:"Could not save file",error:e});
                                                 })
+                                            }
+                                            else{
+                                                this.getConsignments(data.user)
+                                                    .then(result=>{
+                                                        resolve({code:0,msg:"Successful",data:result.data});
+                                                    })
+                                                    .catch(err=>{
+                                                        console.error(getTimeStamp()+" db.createConsignment(): ",err);
+                                                        reject({code:1,msg:"Could not get consignments list",error:err});
+                                                    })
                                             }
                                         }
                                         else
@@ -1383,23 +1391,16 @@ exports.createConsignment =(data)=>{
                                     }
                                     else{
                                         //successfully created consignment table so insert record
-                                        var insertSql = "insert into consignments_tb (date_created,date_modified,";
-                                        var now = Date.now();
-                                        var val = "values ("+now+","+now+",";
-                                        keys.forEach((key,index)=>{
-                                            if(index < keys.length -1){
-                                                insertSql += key +", ";
-                                                if(typeof values[index] == "string") val += "'"+values[index]+"',";
-                                                else val += values[index]+",";
-                                            }
-                                            else{
-                                                insertSql += key+") ";
-                                                if(typeof values[index] == "string") val += "'"+values[index]+"')";
-                                                else val += values[index]+")";
-                                            }
+                                        var insertSql = "insert into consignments_tb (";
+                                        keys.forEach((key)=>{
+                                            insertSql += key +", ";
                                         });
-                                        insertSql += val;
-                                        con.query(insertSql,values,(e,r)=>{
+                                        insertSql += "date_created, date_modified,status) values (?) ";
+                                        var now = Date.now();
+                                        values.push(now);
+                                        values.push(now);
+                                        values.push(1);
+                                        con.query(insertSql,[values],(e,r)=>{
                                             if(e){
                                                 console.error(getTimeStamp()+" db.createConsignment(): ",e);
                                                 reject({code:1,msg:"Could not create consignment record",error:e});
@@ -1407,7 +1408,7 @@ exports.createConsignment =(data)=>{
                                             else{
                                                 if(r.insertId){
                                                     //record successfully inserted
-                                                    if(instructions_file != null){
+                                                    if(instructions_file != null && instructions_file != undefined){
                                                         //save file if provided
                                                         saveFile(instructions_file,{user:data.user,target:'consignments_tb',refer_id:r.insertId,name:"shipping instructions"})
                                                         .then(fileId=>{
@@ -1430,13 +1431,24 @@ exports.createConsignment =(data)=>{
                                                             reject({code:1,msg:"Could not save file",error:e});
                                                         })
                                                     }
+                                                    else{
+                                                        this.getConsignments(data.user)
+                                                        .then(result=>{
+                                                            resolve({code:0,msg:"Successful",data:result.data});
+                                                        })
+                                                        .catch(err=>{
+                                                            console.error(getTimeStamp()+" db.createConsignment(): ",err);
+                                                            reject({code:1,msg:"Could not get consignments list",error:err});
+                                                        })
+                                                    }
                                                 }
                                                 else
                                                 reject({code:1,msg:"No new record was created"});
                                             }
                                         })
                                     }
-                                })
+                                });
+                                
                             }
                         })
                         .catch(e=>{
@@ -1479,7 +1491,10 @@ exports.getConsignments = (userId)=>{
 
                             }
                             else{
-                                let consignments = r;
+                                let consignments = r.map(i=>{
+                                    i.status_text = CONSIGNMENT_STATUS.filter(s=>s.id == i.id)[0].status;
+                                    return i;
+                                });
                                 this.getAllConsignmentFiles(userId)
                                 .then(result=>{
                                     consginments = r.map(c=>{
@@ -2246,7 +2261,6 @@ exports.getContainers = (userId)=>{
                                     reject({code:1,msg:"Could not retrieve container data",error:e});
                                 }
                                 else{
-                                    con.release();
                                     resolve({code:0,msg:"successful",data:r});
                                 }
                             })
