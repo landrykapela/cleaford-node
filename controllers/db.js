@@ -1671,7 +1671,7 @@ exports.updateConsignment =(data)=>{
     
 }
 //update consignment status
-exports.updateConsignmentStatus = (userId,data)=>{
+exports.updateConsignmentStatus = (userId,status,cid)=>{
     return new Promise((resolve,reject)=>{
         this.getUser(userId)
         .then(result=>{
@@ -1683,16 +1683,8 @@ exports.updateConsignmentStatus = (userId,data)=>{
                         reject({code:1,msg:"Could not get connection to service",error:e});
                     }
                     else{
-                        var cid = data.id;
-                        delete data.id;
-                        var sql = "update consignments_tb set ";
-                        Object.keys(data).forEach((key,i)=>{
-                            sql += key+"=?, ";
-                        });
-                        sql += "date_modified=? where id=?";
-                        var values = Object.values(data);
-                        values.push(Date.now());
-                        values.push(cid);
+                        var sql = "update consignments_tb set status=?,date_modified=? where id=?";
+                        var values = [status,Date.now(),cid];
     
                         con.query(sql,values,(e,r)=>{
                             if(e){
@@ -1713,6 +1705,9 @@ exports.updateConsignmentStatus = (userId,data)=>{
                     }
                 })
             }
+        }).catch(e=>{
+            console.error(getTimeStamp()+" db.updateConsignmentStatus(): ",e);
+            reject({code:1,msg:"Could not verify user credentials",error:e});
         })
     })
    
@@ -1807,25 +1802,30 @@ exports.createBooking=(data)=>{
                                 
                                     }
                                     else{
+                                        con.release();
                                         if(bookingConfirmation != null){
                                             saveFile(bookingConfirmation,{user:userId,
                                                 target:"ship_bookings",name:"ship booking",refer_id:data.cid})
-                                            .then(fileId=>{
-                                                this.getBookings(userId)
-                                                .then(result=>{
-                                                    con.release();
-                                                    this.updateConsignmentStatus(userId,{status:3,id:data.cid})
+                                            .then(done=>{
+                                                if(done){
+                                                    this.updateConsignmentStatus(userId,3,data.cid)
                                                     .then(rs=>{
                                                         resolve({code:0,msg:"successful",data:rs.data});
                                                     })
                                                     .catch(e=>{
                                                         resolve(result);
                                                     })
-                                                    
-                                                })
-                                                .catch(e=>{
-                                                    reject(e);
-                                                })
+                                                }
+                                                else{
+                                                    this.getConsignments(userId)
+                                                    .then(rs=>{
+                                                        resolve({code:0,msg:"successful",data:rs.data});
+                                                    })
+                                                    .catch(e=>{
+                                                        resolve(result);
+                                                    })
+                                                }
+                                                
                                             })
                                             .catch(e=>{
                                                 reject(e);
@@ -1833,22 +1833,13 @@ exports.createBooking=(data)=>{
                                             
                                         }
                                         else{
-                                            this.getBookings(userId)
-                                                .then(result=>{
-                                                    con.release();
-                                                    this.updateConsignmentStatus(userId,{date_modified:Date.now(),id:data.cid})
-                                                    .then(rs=>{
-                                                        resolve({code:0,msg:"successful",data:rs.data});
-                                                    })
-                                                    .catch(e=>{
-                                                        resolve(result);
-                                                    })
-                                                    
-                                                })
-                                                .catch(e=>{
-                                                    reject(e);
-                                                })
-                                            // resolve({code:0,msg:"successful",data:{consignments:rs.data,bookings:result.data}});
+                                            this.getConsignments(userId)
+                                            .then(rs=>{
+                                                resolve({code:0,msg:"successful",data:rs.data});
+                                            })
+                                            .catch(e=>{
+                                                resolve(result);
+                                            })
                                         }
                                     }
                                 })
@@ -1890,7 +1881,7 @@ exports.createBooking=(data)=>{
                                                         this.getBookings(userId)
                                                         .then(result=>{
                                                             con.release();
-                                                            this.updateConsignmentStatus(userId,{status:3,id:data.cid})
+                                                            this.updateConsignmentStatus(userId,3,data.cid)
                                                             .then(rs=>{
                                                                 resolve({code:0,msg:"successful",data:rs.data});
                                                             })
@@ -1982,7 +1973,7 @@ exports.updateBooking=(data)=>{
                                     else{
                                         console.log("update query: ",r);
                                         con.release();
-                                        this.updateConsignmentStatus(userId,{status:3,id:data.cid})
+                                        this.updateConsignmentStatus(userId,3,data.cid)
                                             .then(rs=>{
                                                 resolve({code:0,msg:"successful",data:rs.data});
                                             })
@@ -2140,7 +2131,7 @@ exports.createContainer = (data)=>{
                                             saveFile(file,{user:userId,target:"container_bookings",name:"container confirmation",refer_id:data.cid})
                                             .then(done=>{
                                                 if(done && data.mbl_number){
-                                                    this.updateConsignmentStatus(userId,{status:4})
+                                                    this.updateConsignmentStatus(userId,4,data.cid)
                                                     .then(result=>{
                                                         resolve(result);
                                                     })
@@ -2161,12 +2152,14 @@ exports.createContainer = (data)=>{
                                                 reject(e);
                                             })
                                         }
-                                        this.getConsignments(userId)
+                                        else{
+                                            this.getConsignments(userId)
                                             .then(result=>{
                                                 resolve(result);
                                             }).catch(e=>{
                                                 reject(e);
                                             })
+                                        }
                                     }
                                 })
                             }
@@ -2191,7 +2184,7 @@ exports.createContainer = (data)=>{
                                                     saveFile(file,{user:userId,target:"container_bookings",name:"container confirmation",refer_id:data.cid})
                                                     .then(done=>{
                                                         if(done && data.mbl_number){
-                                                            this.updateConsignmentStatus(userId,{status:4})
+                                                            this.updateConsignmentStatus(userId,4,data.cid)
                                                             .then(result=>{
                                                                 resolve(result);
                                                             })
@@ -2212,12 +2205,14 @@ exports.createContainer = (data)=>{
                                                         reject(e);
                                                     })
                                                 }
-                                                this.getConsignments(userId)
+                                                else{
+                                                    this.getConsignments(userId)
                                                     .then(result=>{
                                                         resolve(result);
                                                     }).catch(e=>{
                                                         reject(e);
                                                     })
+                                                }
                                             }
                                         }) 
                                     }
@@ -2240,7 +2235,90 @@ exports.createContainer = (data)=>{
         })
     })
 }
+exports.updateContainer = (data)=>{
+    var userId = data.user;
+    var containerId = data.id;
+    var file = data.container_file;
+    delete data.user;
+    delete data.id;
+    delete data.container_file;
 
+    return new Promise((resolve,reject)=>{
+        this.getUser(userId).then(result=>{
+            if(result.data){
+                var pool = getClientPool(result.data);
+                var keys = Object.keys(data);
+                var values = Object.values(data);
+                var sql = "update container_bookings set ";
+                keys.forEach(key=>{
+                    sql += key+"=? ,";
+                });
+                sql += "date_modified=? where id=? ";
+                values.push(Date.now());
+                values.push(containerId);
+                pool.getConnection((e,con)=>{
+                    if(e){
+                        console.error(getTimeStamp()+" db.updateContainer(): ",e);
+                        reject({code:1,msg:"Could not get connection to service",error:e})
+                    }
+                    else{
+                        con.query(sql,values,(e,r)=>{
+                            con.release();
+                            if(e){
+                                console.error(getTimeStamp()+" db.updateContainer(): ",e);
+                                reject({code:1,msg:"Could not update container data",error:e}) 
+                            }
+                            else{
+                                if(file != null && file != undefined){
+                                    saveFile(file,{user:userId,target:"container_bookings",refer_id:data.cid,name:"container booking"})
+                                    .then(done=>{
+                                        if(done){
+                                            this.updateConsignmentStatus(userId,4,data.cid)
+                                            .then(result=>{
+                                                resolve(result);
+                                            })
+                                            .catch(e=>{
+                                                reject(e);
+                                            })
+                                        }
+                                        else{
+                                            this.getConsignments(userId)
+                                            .then(result=>{
+                                                resolve(result);
+                                            })
+                                            .catch(e=>{
+                                                reject(e);
+                                            })
+                                        }
+                                    })
+                                    .catch(e=>{
+                                        reject(e);
+                                    })
+                                }
+                                else{
+                                    this.getConsignments(userId)
+                                    .then(result=>{
+                                        resolve(result);
+                                    })
+                                    .catch(e=>{
+                                        reject(e);
+                                    })
+                                }
+                            }
+                        })
+                    }
+                })
+            }
+            else{
+                console.error(getTimeStamp()+" db.updateContainer(): No user");
+                reject({code:1,msg:"You need to permission to access this resource"});
+            }
+        })
+        .catch(e=>{
+            reject(e);
+        })
+    })
+}
 //get containers
 exports.getContainers = (userId)=>{
     return new Promise((resolve,reject)=>{
