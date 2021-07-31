@@ -1425,7 +1425,7 @@ exports.createConsignment =(data)=>{
                                                             })
                                                                 
                                                         })  
-                                                        .catch(notDone=>{
+                                                        .catch(e=>{
                                                             console.error(getTimeStamp()+" saveFile(): Could not save file");
                                                             reject({code:1,msg:"Could not save file",error:e});
                                                         })
@@ -1439,7 +1439,10 @@ exports.createConsignment =(data)=>{
                                 })
                             }
                         })
-                        
+                        .catch(e=>{
+                            console.error(getTimeStamp()+" db.createConsignment(): ",e);
+                            reject({code:1,msg:"Could not verify consignment table",error:e});
+                        })                       
                     }
                 })
             }
@@ -1448,6 +1451,10 @@ exports.createConsignment =(data)=>{
                 reject({code:1,msg:"You need to login to perform this operation",error:err});
            
             }
+        })
+        .catch(e=>{
+            console.error(getTimeStamp()+" db.createConsignment(): ",e);
+            reject(e);
         })
     })
     
