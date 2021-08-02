@@ -584,15 +584,25 @@ exports.getCustomersList =(userId)=>{
             if(user.db && user.db.includes("_")){
                 var pool = getClientPool(user);
                 let sql = "select * from customer_tb order by name asc";
-                pool.query(sql,(e,r)=>{
+                pool.getConnection((e,con)=>{
                     if(e){
                         console.error("db.getCustomerList(): ",e);
-                        reject({code:1,msg:"Could not retrieve the list of customers",error:e});
+                        reject({code:1,msg:"Could not connection to service",error:e});
                     }
                     else{
-                        resolve({code:0,msg:"Successful",data:r});
+                        con.query(sql,(e,r)=>{
+                            if(e){
+                                console.error("db.getCustomerList(): ",e);
+                                reject({code:1,msg:"Could not retrieve the list of customers",error:e});
+                            }
+                            else{
+                                resolve({code:0,msg:"Successful",data:r});
+                            }
+                            con.release();
+                        });
                     }
-                });
+                })
+                
             }
            else{
                this.createClientSpace(userId).then(result=>{
@@ -1015,15 +1025,25 @@ exports.updateRole=(role)=>{
 }
 exports.getRoles = ()=>{
     return new Promise((resolve,reject)=>{
-        pool.query("select * from roles_tb",(e,r,f)=>{
+        pool.getConnection((e,con)=>{
             if(e){
-                console.error("db.getRoles(): ",e);
-                reject({code:1,msg:"Could not retrieve the list of roles"});
+                console.error(getTimeStamp()+"db.getRoles(): ",e);
+                reject({code:1,msg:"Could not get connnection to service",error:e});
             }
             else{
-                resolve({code:0,msg:"Successfully",data:r});
+                con.query("select * from roles_tb",(e,r,f)=>{
+                    con.release();
+                    if(e){
+                        console.error("db.getRoles(): ",e);
+                        reject({code:1,msg:"Could not retrieve the list of roles"});
+                    }
+                    else{
+                        resolve({code:0,msg:"Successfully",data:r});
+                    }
+                });
             }
-        });
+        })
+       
     })
 }
 //get client roles
@@ -1033,15 +1053,25 @@ exports.getClientRoles = (user_id)=>{
             let user = result.data;
             var pool = getClientPool(user);
             var sql = "select * from roles order by level asc";
-            pool.query(sql,(e,r)=>{
+            pool.getConnection((e,con)=>{
                 if(e){
                     console.error("db.getClientRoles(): ",e);
-                    reject({code:1,msg:"Could not retrieve client roles",error:e});
+                    reject({code:1,msg:"Could not get connection to service",error:e});
                 }
                 else{
-                    resolve({code:0,msg:"Successful",data:r})
+                    con.query(sql,(e,r)=>{
+                        con.release();
+                        if(e){
+                            console.error("db.getClientRoles(): ",e);
+                            reject({code:1,msg:"Could not retrieve client roles",error:e});
+                        }
+                        else{
+                            resolve({code:0,msg:"Successful",data:r})
+                        }
+                    })
                 }
             })
+            
         })
         .catch(e=>{
             reject({code:1,msg:"Could not retrieve client roles",error:e})
@@ -1472,6 +1502,7 @@ exports.createConsignment =(data)=>{
     
 }
 
+//get all consignments for user
 exports.getConsignments = (userId)=>{
     return new Promise((resolve,reject)=>{
         this.getUser(userId)
@@ -1485,6 +1516,7 @@ exports.getConsignments = (userId)=>{
                     }
                     else{
                         con.query("select * from consignments_tb order by id desc",(e,r)=>{
+                            con.release();
                             if(e){
                                 console.error(getTimeStamp()+" db.createConsignment(): ",e);
                                 reject({code:1,msg:"Could not get connection to service",error:e});
@@ -1552,6 +1584,134 @@ exports.getConsignments = (userId)=>{
     })
 }
 
+//get single consignment
+exports.getConsignment = (userId,cid)=>{
+    return new Promise((resolve,reject)=>{
+        this.getUser(userId)
+        .then(result=>{
+            if(result.data){
+                var pool = getClientPool(result.data);
+                pool.getConnection((e,con)=>{
+                    if(e){
+                        console.error(getTimeStamp()+" db.createConsignment(): ",e);
+                        reject({code:1,msg:"Could not get connection to service",error:e});
+                    }
+                    else{
+                        con.query("select * from consignments_tb  where id=? order by id desc",[cid],(e,r)=>{
+                            con.release();
+                            if(e){
+                                console.error(getTimeStamp()+" db.createConsignment(): ",e);
+                                reject({code:1,msg:"Could not get connection to service",error:e});
+
+                            }
+                            else{
+                                let consignments = r.map(i=>{
+                                    i.status_text = CONSIGNMENT_STATUS.filter(s=>s.id == i.id)[0].status;
+                                    return i;
+                                });
+                                this.getAllConsignmentFiles(userId)
+                                .then(result=>{
+                                    consginments = r.map(c=>{
+                                        let i = c;
+                                        i.files = result.data.filter(d=>d.refer_id == c.id);
+                                        return i;
+                                    });
+                                    let consignmentsWithShipping = consignments;
+                                    this.getBookings(userId)
+                                    .then(result=>{
+                                        consignmentsWithShipping = consignments.map(c=>{
+                                            let cs = c;
+                                            cs.shipping_details = result.data.filter(sd=>sd.cid == c.id)[0];
+                                            return cs;
+                                        })
+                                    })
+                                    .catch(e=>{
+                                        console.error(getTimeStamp()+" db.getConsignments(): ",e);
+                                    })
+                                    .finally(()=>{
+                                        let newCons = consignmentsWithShipping;
+                                        this.getContainers(userId).then(result=>{
+                                            newCons = consignmentsWithShipping.map(c=>{
+                                                let cs = c;
+                                                cs.container_details = result.data.filter(rs=>rs.cid == c.id)
+                                                return cs;
+                                            })
+                                        })
+                                        .catch(e=>{
+                                            console.error(getTimeStamp()+" db.getConsignments(): ",e);
+                                        })
+                                        .finally(()=>{
+                                            resolve({code:0,"msg":"successful",data:newCons});
+                                        })
+                                    })
+                                }).catch(e=>{
+                                    console.error(getTimeStamp()+" db.getConsignments(): ",e);
+                                    reject({code:1,msg:"Could not get consignment fiels",error:e});
+                                })
+                               
+                            }
+                        })
+                    }
+                })
+            }
+            else{
+                console.error(getTimeStamp()+" db.getConsignments() :",result.data);
+                reject({code:1,msg:"Invalid user"})
+            }
+        })
+        .catch(e=>{
+            console.error(getTimeStamp()+" db.getConsignments() :",e);
+            reject({code:1,msg:"You need to login",error:e})
+        })
+    })
+}
+
+//update consignment file
+exports.updateConsignmentFile = (data)=>{
+    return new Promise((resolve,reject)=>{
+        if(data.file){
+            this.getConsignment(userId,data.cid)
+            .then(result=>{
+                if(result.data){
+                    saveFile(file,{target:data.target,user:data.user,refer_id:data.cid})
+                    .then(done=>{
+                        if(done){
+                            let status = result.data.status + 1;
+                            this.updateConsignmentStatus(data.user,status,cid)
+                            .then(result=>{
+                                resolve(result);
+                            })
+                            .catch(e=>{
+                                reject(e);
+                            })
+                        }
+                        else{
+                            reject({code:1,msg:"Could not save file"});
+                        }
+                        
+                    })
+                    .catch(e=>{
+                        console.error(getTimeStamp()+" db.updateConsignmentFiles(): ",e);
+                        reject(e);
+                    })
+                }
+                else{
+                    console.error(getTimeStamp()+" db.updateConsignmentFiles(): ");
+                    reject({code:1,msg:"Could not find consignment"});
+                }
+            })
+            .catch(e=>{
+                console.error(getTimeStamp()+" db.updateConsignmentFiles(): ",e);
+                reject({code:1,msg:"Could not find consignment",error:e});
+            })
+           
+        }
+        else{
+            reject({code:1,msg:"Invalid file"})
+        }
+    })
+    
+}
 //create consignment
 exports.updateConsignment =(data)=>{
     var consId = data.id;
@@ -1677,33 +1837,55 @@ exports.updateConsignmentStatus = (userId,status,cid)=>{
         .then(result=>{
             if(result.data){
                 var pool = getClientPool(result.data);
-                pool.getConnection((e,con)=>{
-                    if(e){
-                        console.error(getTimeStamp()+" db.updateConsignmentStatus(): ",e);
-                        reject({code:1,msg:"Could not get connection to service",error:e});
-                    }
-                    else{
-                        var sql = "update consignments_tb set status=?,date_modified=? where id=?";
-                        var values = [status,Date.now(),cid];
-    
-                        con.query(sql,values,(e,r)=>{
-                            if(e){
-                                console.error(getTimeStamp()+" db.updateConsignmentStatus(): ",e);
-                                reject({code:1,msg:"Could not update consignment",error:e});
-                            }
-                            else{
-                                con.release();
-                                this.getConsignments(userId)
+                this.getConsignment(userId,cid).then(result=>{
+                    if(result.data){
+                        if(result.data.status >= status){
+                            this.getConsignments(userId)
                                 .then(result=>{
                                     resolve(result);
                                 })
                                 .catch(e=>{
                                     reject(e);
                                 })
-                            }
-                        })
+                        }
+                        else{
+                            pool.getConnection((e,con)=>{
+                                if(e){
+                                    console.error(getTimeStamp()+" db.updateConsignmentStatus(): ",e);
+                                    reject({code:1,msg:"Could not get connection to service",error:e});
+                                }
+                                else{
+                                    var sql = "update consignments_tb set status=?,date_modified=? where id=?";
+                                    var values = [status,Date.now(),cid];
+                
+                                    con.query(sql,values,(e,r)=>{
+                                        if(e){
+                                            console.error(getTimeStamp()+" db.updateConsignmentStatus(): ",e);
+                                            reject({code:1,msg:"Could not update consignment",error:e});
+                                        }
+                                        else{
+                                            con.release();
+                                            this.getConsignments(userId)
+                                            .then(result=>{
+                                                resolve(result);
+                                            })
+                                            .catch(e=>{
+                                                reject(e);
+                                            })
+                                        }
+                                    })
+                                }
+                            })
+                        }
+                    }
+                    else{
+                        reject({code:1,msg:"Invalid consignment"});
                     }
                 })
+               
+            }
+            else{
+                reject({code:1,msg:"Invalid user"});
             }
         }).catch(e=>{
             console.error(getTimeStamp()+" db.updateConsignmentStatus(): ",e);
