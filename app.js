@@ -462,8 +462,9 @@ app.post("/user", (req, result) => {
       gross_volume:req.body.gross_volume,gross_volume_unit:req.body.gross_volume_unit,net_weight:req.body.net_weight,net_weight_unit:req.body.net_weight_unit,
       invoice_value:req.body.invoice_value,invoice_currency:req.body.invoice_currency,freight_charge:req.body.freight_charge,freight_currency:req.body.freight_currency,
       imdg_code:req.body.imdg_code,packing_type:req.body.packing_type,oil_type:req.body.oil_type,shipping_mark:req.body.shipping_mark,
-      user:req.body.user,
-      forwarder_code:req.body.forwarder_id,forwarder_id:req.body.forwarder_id,exporter_id:req.body.exporter_id,
+      user:req.body.user,consignee_name:req.body.consignee_address,consignee_phone:req.body.consignee_phone,consignee_tin:req.body.consignee_tin,consignee_address:req.body.consignee_address,
+      notify_name:req.body.notify_name,notify_phone:req.body.notify_phone,notify_tin:req.body.notify_tin,notify_address:req.body.notify_address,
+      forwarder_code:req.body.forwarder_code,forwarder_id:req.body.forwarder_id,exporter_id:req.body.exporter_id,
       instructions_file:req.body.instructions_file
   }
     db.createConsignment(data)
@@ -527,7 +528,7 @@ app.post("/user", (req, result) => {
 })
 //updload consignment fiels
 app.post("/uploads",authenticateToken,(req,res)=>{
-  var data = {cid:req.body.cid,file:req.body.file,target:req.body.target,user:req.body.user};
+  var data = {name:req.body.name,cid:req.body.cid,file:req.body.file,target:req.body.target,user:req.body.user};
   db.updateConsignmentFile(data).then(result=>{
     res.status(201).json(result);
   })
@@ -537,7 +538,7 @@ app.post("/uploads",authenticateToken,(req,res)=>{
 })
 //ship booking
 app.post("/booking/:userId",authenticateToken,(req,res)=>{
-  var data = {user_id:req.params.userId,cid:req.body.cid,mbl_number:req.body.mbl_number,shipping_line:req.body.shipping_line,vessel_name:req.body.vessel_name,
+  var data = {eta:req.body.eta,etb:req.body.etb,etd:req.body.etd,user_id:req.params.userId,cid:req.body.cid,mbl_number:req.body.mbl_number,shipping_line:req.body.shipping_line,vessel_name:req.body.vessel_name,
     booking_no:req.body.booking_no,bl_type:req.body.bl_type,
     terminal_carry_date:req.body.terminal_carry_date,booking_confirmation:req.body.booking_confirmation
   }
@@ -551,7 +552,7 @@ app.post("/booking/:userId",authenticateToken,(req,res)=>{
 
 //update booking
 app.put("/booking/:userId",(req,res)=>{
-  var data = {id:req.body.id,user_id:req.params.userId,cid:req.body.cid,mbl_number:req.body.mbl_number,shipping_line:req.body.shipping_line,vessel_name:req.body.vessel_name,
+  var data = {eta:req.body.eta,etb:req.body.etb,etd:req.body.etd,id:req.body.id,user_id:req.params.userId,cid:req.body.cid,mbl_number:req.body.mbl_number,shipping_line:req.body.shipping_line,vessel_name:req.body.vessel_name,
     booking_no:req.body.booking_no,bl_type:req.body.bl_type,
     terminal_carry_date:req.body.terminal_carry_date,booking_confirmation:req.body.booking_confirmation
   }

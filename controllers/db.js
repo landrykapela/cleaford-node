@@ -41,19 +41,29 @@ const doesTableExist = (tableName,userId)=>{
         .then(result=>{
             if(result.data){
                 var pool = getClientPool(result.data);
-                pool.query("show tables",(e,r)=>{
-                    var key = "Tables_in_"+result.data.db;
-                    if(r && r.length > 0){
-                        var table = r.filter(i=>i[key].toLowerCase() == tableName.toLowerCase());
-                        if(table.length > 0) {
-                            resolve(true);
-                        }
-                        else{
-                            resolve(false);
-                        }
+                pool.getConnection((e,con)=>{
+                    if(e){
+                        console.error(getTimeStamp()+" db.doesTableExist(): ",e);
+                        reject(false);
                     }
-                    else resolve(false);
+                    else{
+                        con.query("show tables",(e,r)=>{
+                            con.release();
+                            var key = "Tables_in_"+result.data.db;
+                            if(r && r.length > 0){
+                                var table = r.filter(i=>i[key].toLowerCase() == tableName.toLowerCase());
+                                if(table.length > 0) {
+                                    resolve(true);
+                                }
+                                else{
+                                    resolve(false);
+                                }
+                            }
+                            else resolve(false);
+                        })
+                    }
                 })
+               
             }
             else{
                 resolve(false);
@@ -98,7 +108,7 @@ const saveFile = (encodedData,options)=>{
                         var data = parts[1];
                         var ext = "."+parts[0].split("/")[1];
                         var name = randomString(10);
-                        var filename = name+ext;
+                        var filename = (options.filename) ? options.filename.split(".")[0]+ext : name+ext;
                         if(options.name) name = options.name; 
                         console.log("writing file...");
                         fs.writeFile("data/"+filename,data,{encoding:'base64'},(e)=>{
@@ -108,8 +118,12 @@ const saveFile = (encodedData,options)=>{
                             }
                             else{
                                 console.log("creating db record of file");
-                                var sql = "insert into user_files (name,refer_id,target,filename) values(?) ";
-                                var values = [name,options.refer_id,options.target,filename];
+                                var sql = "insert into user_files (name,refer_id,target,filename) values(?) on duplicate key update name=values(name),target=values(target)";
+                                var values = [[name,options.refer_id,options.target,filename]];
+                                if(options.filename) {
+                                    sql = "update user_files set filename=? where refer_id=? and name=?";
+                                    values = [filename,options.refer_id,options.name];
+                                }
                                 pool.getConnection((e,con)=>{
                                     if(e){
                                         console.log("no connection to db; deleting file...");
@@ -120,7 +134,8 @@ const saveFile = (encodedData,options)=>{
                                         reject(false);
                                     }
                                     else{
-                                        con.query(sql,[values],(e,r)=>{
+                                        con.query(sql,values,(e,r)=>{
+                                            con.release();
                                             if(e){
                                                 console.log("error inserting record; deleting file...");
                                                 fs.unlink("data/"+filename,(e)=>{
@@ -131,7 +146,7 @@ const saveFile = (encodedData,options)=>{
                                             }
                                             else{
                                                 console.log("success");
-                                                resolve(r.insertId);
+                                                resolve(true);
                                             }
                                         })
                                     }
@@ -591,6 +606,7 @@ exports.getCustomersList =(userId)=>{
                     }
                     else{
                         con.query(sql,(e,r)=>{
+                            con.release();
                             if(e){
                                 console.error("db.getCustomerList(): ",e);
                                 reject({code:1,msg:"Could not retrieve the list of customers",error:e});
@@ -598,7 +614,6 @@ exports.getCustomersList =(userId)=>{
                             else{
                                 resolve({code:0,msg:"Successful",data:r});
                             }
-                            con.release();
                         });
                     }
                 })
@@ -730,6 +745,7 @@ exports.getUser = (userId)=>{
             }
             else{
                 con.query("select * from user_tb where id=?",[userId],(e,r,f)=>{
+                    con.release();
                     if(e){
                         console.error("db.getUser(): ",e);
                         reject({code:1,msg:"Could not retrieve user details",error:e});
@@ -740,7 +756,6 @@ exports.getUser = (userId)=>{
                         }
                         else reject({code:1,msg:"User does not exist"});
                     }
-                    con.release();
                 })
             }
         })
@@ -749,18 +764,29 @@ exports.getUser = (userId)=>{
 }
 exports.getUserWithEmail = (email)=>{
     return new Promise((resolve,reject)=>{
-        pool.query("select * from user_tb where email=?",[email],(e,r,f)=>{
+        pool.getConnection((e,con)=>{
             if(e){
-                console.error("db.getUser(): ",e);
-                reject({code:1,msg:"Could not retrieve user details",error:e});
+                console.error("db.getUserByEmail(): ",e);
+                reject({code:1,msg:"Could not get connection to service",error:e});
             }
             else{
-                if(r.length > 0){
-                    resolve({code:0,msg:"Successful",data:r[0]});
-                }
-                else resolve({code:1,msg:"Could not retrieve user details",error:"User does not exist"});
+                con.query("select * from user_tb where email=?",[email],(e,r,f)=>{
+                    con.release();
+                    if(e){
+                        console.error("db.getUser(): ",e);
+                        reject({code:1,msg:"Could not retrieve user details",error:e});
+                    }
+                    else{
+                        if(r.length > 0){
+                            resolve({code:0,msg:"Successful",data:r[0]});
+                        }
+                        else resolve({code:1,msg:"Could not retrieve user details",error:"User does not exist"});
+                    }
+                });
             }
-        });
+           
+        })
+       
     })
    
 }
@@ -789,13 +815,13 @@ exports.createFeature = (data)=>{
             }
             else{
                 con.query(sql,[values],(e,r)=>{
+                    con.release();
                     if(e){
                         con.release();
                         console.error("db.createFeature(): ",e);
                         reject({code:1,msg:"Could not create feature",error:e});
                     }
                     else{
-                        con.release();
                         this.getFeatures().then(result=>{
                             resolve({code:0,msg:"Successfully created feature",data:result.data});
                         }).catch(e=>{
@@ -820,12 +846,12 @@ exports.deleteFeature=(featureId)=>{
             }
             else{
                 con.query("delete from features_tb where id=?",[featureId],(e,r)=>{
+                    con.release();
                     if(e){
                         console.error(getTimeStamp()+" db.deleteFeature(): ",e);
                         reject({code:1,msg:"Could not delete feature",error:e});
                     }
                     else{
-                        con.release();
                         this.getFeatures().then(result=>{
                             resolve(result);
                         }).catch(er=>{
@@ -848,12 +874,12 @@ exports.updateFeature=(feature)=>{
             }
             else{
                 con.query("update features_tb set name=?,description=?,label=?,parent=? where id=?",[feature.name,feature.description,feature.label,feature.parent,feature.id],(e,r)=>{
+                    con.release();
                     if(e){
                         console.error(getTimeStamp()+" db.updateFeature(): ",e);
                         reject({code:1,msg:"Could not update feature",error:e});
                     }
                     else{
-                        con.release();
                         this.getFeatures().then(result=>{
                             resolve(result);
                         }).catch(er=>{
@@ -875,13 +901,12 @@ exports.getFeatures = ()=>{
             }
             else{
                 con.query("select * from features_tb",(e,r,f)=>{
+                    con.release();
                     if(e){
-                        con.release();
                         console.error("db.getFeatures(): ",e);
                         reject({code:1,msg:"Could not retrieve the list of features"});
                     }
                     else{
-                        con.release();
                         resolve({code:0,msg:"Successfully",data:r});
                     }
                 });
@@ -906,13 +931,12 @@ exports.getFeaturesMultiple = (featureIds)=>{
                     });
 
                     con.query(sql,featureIds,(e,r,f)=>{
+                        con.release();
                         if(e){
-                            con.release();
                             console.error("db.getFeatures(): ",e);
                             reject({code:1,msg:"Could not retrieve the list of features"});
                         }
                         else{
-                            con.release();
                             resolve({code:0,msg:"Successfully",data:r});
                         }
                     });
@@ -932,6 +956,7 @@ exports.getFeature = (featureId)=>{
             }
             else{
                 con.query("select * from features_tb where id=?",[featureId],(e,r)=>{
+                    con.release();
                     if(e){
                         console.error(getTimeStamp()+" db.getSubscriptionPackages(): ",e);
                         reject({code:1,msg:"Could not get feature",error:e});
@@ -939,7 +964,6 @@ exports.getFeature = (featureId)=>{
                     else{
                         resolve({code:0,msg:"Success",data:r});
                     }
-                    con.release();
                 })
             }
         })
@@ -977,12 +1001,12 @@ exports.deleteRole=(roleId)=>{
             }
             else{
                 con.query("delete from roles_tb where id=?",[roleId],(e,r)=>{
+                    con.release();
                     if(e){
                         console.error(getTimeStamp()+" db.deleteRole(): ",e);
                         reject({code:1,msg:"Could not delete role",error:e});
                     }
                     else{
-                        con.release();
                         this.getRoles().then(result=>{
                             resolve(result);
                         }).catch(er=>{
@@ -1168,20 +1192,18 @@ exports.deleteClientRole = (user_id,role_id)=>{
                     if(result.data){
                         var clientPool = getClientPool(result.data);
                         clientPool.getConnection((e,conn)=>{
+                            conn.release();
                             if(e){
-                                conn.release();
                                 console.error(getTimeStamp()+" db.deleteClientRole(): ",e);
                                 reject({code:1,msg:"Could not connect to client space",error:e});
                             }
                             else{
                                 conn.query("delete from roles where id=?",[role_id],(e,r)=>{
                                     if(e){
-                                        conn.release();
                                         console.error(getTimeStamp()+" db.deleteClientRole(): ",e);
                                         reject({code:1,msg:"Could not connect to service",error:e});
                                     }
                                     else{
-                                        conn.release();
                                         this.getClientRoles(user_id).then(result=>{
                                             resolve(result);
                                         }).catch(err=>{
@@ -1210,19 +1232,17 @@ exports.updateClientRole = (data)=>{
                 var clientPool = getClientPool(result.data);
                 clientPool.getConnection((e,conn)=>{
                     if(e){
-                        conn.release();
                         console.error(getTimeStamp()+" db.deleteClientRole(): ",e);
                         reject({code:1,msg:"Could not connect to client space",error:e});
                     }
                     else{
                         conn.query("update roles set name=?, description=?, level=? where id=?",[data.name,data.description,data.level,data.id],(e,r)=>{
+                            conn.release();
                             if(e){
-                                conn.release();
                                 console.error(getTimeStamp()+" db.deleteClientRole(): ",e);
                                 reject({code:1,msg:"Could not connect to service",error:e});
                             }
                             else{
-                                conn.release();
                                 this.getClientRoles(data.user).then(result=>{
                                     resolve(result);
                                 }).catch(err=>{
@@ -1251,13 +1271,12 @@ exports.getPaymentTerms = ()=>{
             }
             else{
                 con.query("select * from payment_terms order by id asc",(e,r)=>{
+                    con.release();
                     if(e){
-                        con.release();
                         console.error(getTimeStamp()+" db.getpaymentTerms(): ",e);
                         reject({code:1,msg:"Could not retrieve payment terms",error:e});
                     }
                     else{
-                        con.release();
                         resolve({code:0,msg:"success",data:r});
                     }
                 })
@@ -1276,13 +1295,12 @@ exports.getSubscriptionPackages = ()=>{
             }
             else{
                 con.query("select * from packages_tb",(e,r)=>{
+                    con.release();
                     if(e){
                         console.console.error(getTimeStamp()+" db.getSubscriptionPackages(): ",e);
                         reject({code:1,msg:"Could not get subscription packages",error:e})
                     }
                     else resolve({code:0,msg:"Success",data:r}); 
-                        
-                    con.release();
                 })
             }
         })
@@ -1511,20 +1529,20 @@ exports.getConsignments = (userId)=>{
                 var pool = getClientPool(result.data);
                 pool.getConnection((e,con)=>{
                     if(e){
-                        console.error(getTimeStamp()+" db.createConsignment(): ",e);
+                        console.error(getTimeStamp()+" db.getConsignment(): ",e);
                         reject({code:1,msg:"Could not get connection to service",error:e});
                     }
                     else{
                         con.query("select * from consignments_tb order by id desc",(e,r)=>{
                             con.release();
                             if(e){
-                                console.error(getTimeStamp()+" db.createConsignment(): ",e);
-                                reject({code:1,msg:"Could not get connection to service",error:e});
+                                console.error(getTimeStamp()+" db.getConsignment(): ",e);
+                                reject({code:1,msg:"Could not get consignments",error:e});
 
                             }
                             else{
                                 let consignments = r.map(i=>{
-                                    i.status_text = CONSIGNMENT_STATUS.filter(s=>s.id == i.id)[0].status;
+                                    i.status_text = CONSIGNMENT_STATUS.filter(s=>s.id == i.status)[0].status;
                                     return i;
                                 });
                                 this.getAllConsignmentFiles(userId)
@@ -1670,14 +1688,28 @@ exports.getConsignment = (userId,cid)=>{
 exports.updateConsignmentFile = (data)=>{
     return new Promise((resolve,reject)=>{
         if(data.file){
-            this.getConsignment(userId,data.cid)
+            this.getConsignment(data.user,data.cid)
             .then(result=>{
                 if(result.data){
-                    saveFile(file,{target:data.target,user:data.user,refer_id:data.cid})
+                    var consignment = result.data[0];
+                    var option = {target:data.target,user:data.user,refer_id:data.cid,name:data.name};
+                    var files = consignment.files.filter(f=>f.refer_id == consignment.id && f.name == data.name);
+                    if(files && files.length > 0){
+                        option.filename = files[0].filename;
+                    }
+                    saveFile(data.file,option)
                     .then(done=>{
                         if(done){
-                            let status = result.data.status + 1;
-                            this.updateConsignmentStatus(data.user,status,cid)
+                            let status = parseInt(consignment.status) + 1;
+                            if(option.name == "container booking" && consignment.status <= 3) status = 4;
+                            else if(option.name == "container booking" && consignment.status > 3) status = consignment.status;
+                            else if(option.name == "ship booking" && consignment.status <= 2) status = 3;
+                            else if(option.name == "ship booking" && consignment.status > 2) status = consignment.status;
+                            else if(option.name == "shipping instructions" && consignment.status <= 1) status = 2;
+                            else if(option.name == "shipping instructions" && consignment.status >1) status = consignment.status;
+                            else if(option.name == "certificates" && consignment.status <= 4) status = 5;
+                            else if(option.name == "certificates" && consignment.status > 5) status = consignment.status;
+                            this.updateConsignmentStatus(data.user,status,data.cid)
                             .then(result=>{
                                 resolve(result);
                             })
@@ -1917,24 +1949,29 @@ exports.getAllConsignmentFiles = (userId)=>{
             if(result.data){
                 var pool = getClientPool(result.data);
                 doesTableExist("user_files",userId).then(exist=>{
-                    pool.getConnection((e,con)=>{
-                        if(e){
-                            console.error(getTimeStamp()+" db.getConsignmentFiles(): ",e);
-                            reject({code:1,msg:"Could not get connection to service",error:e});
-                        }
-                        else{
-                            con.query("select * from user_files",(e,r)=>{
-                                con.release();
-                                if(e){
-                                    console.error(getTimeStamp()+" db.getConsignmentFiles(): ",e);
-                                    reject({code:1,msg:"Could not get consignment files",error:e});
-                                }
-                                else{
-                                    resolve({code:0,msg:"Successful",data:r});
-                                }
-                            })
-                        }
-                    })
+                    if(exist){
+                        pool.getConnection((e,con)=>{
+                            if(e){
+                                console.error(getTimeStamp()+" db.getConsignmentFiles(): ",e);
+                                reject({code:1,msg:"Could not get connection to service",error:e});
+                            }
+                            else{
+                                con.query("select * from user_files",(e,r)=>{
+                                    con.release();
+                                    if(e){
+                                        console.error(getTimeStamp()+" db.getConsignmentFiles(): ",e);
+                                        reject({code:1,msg:"Could not get consignment files",error:e});
+                                    }
+                                    else{
+                                        resolve({code:0,msg:"Successful",data:r});
+                                    }
+                                })
+                            }
+                        })
+                    }
+                    else{
+                        resolve({code:0,msg:"Successful",data:[]}); 
+                    }
                     
                 })
                 .catch(e=>{
@@ -2031,7 +2068,7 @@ exports.createBooking=(data)=>{
                                 var createSql = "create table ship_bookings (";
                                 keys.forEach(key=>{
                                     if(key.toLowerCase() == "cid") createSql += key+ " int(10) not null unique, ";
-                                    else if(key.toLowerCase() == "terminal_carry_date") createSql += key+" bigint, ";
+                                    else if(key.toLowerCase() == "terminal_carry_date" || key.toLowerCase() == "etd" || key.toLowerCase() == "etb" || key.toLowerCase() == "eta") createSql += key+" bigint, ";
                                     else createSql += key +" varchar(50), ";
                                 });
                                 createSql += "date_created bigint,date_modified bigint)";
