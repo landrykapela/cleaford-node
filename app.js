@@ -536,6 +536,12 @@ app.post("/uploads",authenticateToken,(req,res)=>{
     res.status(200).json(er);
   })
 })
+//delete uploaded files
+app.delete("/uploads/:user_id/:file_id",authenticateToken,(req,res)=>{
+  let data = {userId:req.params.user_id,fileId:req.params.file_id};
+  db.deleteFile(data).then(result=>res.status(200).json(result))
+  .catch(e=>res.status(200).json(e))
+})
 //ship booking
 app.post("/booking/:userId",authenticateToken,(req,res)=>{
   var data = {eta:req.body.eta,etb:req.body.etb,etd:req.body.etd,user_id:req.params.userId,cid:req.body.cid,mbl_number:req.body.mbl_number,shipping_line:req.body.shipping_line,vessel_name:req.body.vessel_name,
