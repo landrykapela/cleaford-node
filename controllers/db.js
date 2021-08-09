@@ -6,7 +6,17 @@ const fs = require('fs');
 const { join, resolve } = require("path");
 
 //consignment status
-const CONSIGNMENT_STATUS = [{id:1,status:"Pending Ship Booking"},{id:2,status:"Pending ODG Certificates"},{id:3,status:"Pending ODG Certificates"},{id:4,status:"Pending Custom Release"},{id:5,status:"Pending Loading Permission"},{id:6,status:"Pending Export Permit"},{id:7,status:"Pending Bill of Lading"},{id:8,status:"Pending Bill of Lading"},{id:9,status:"Completed"},{id:10,status:"Closed"}]
+const CONSIGNMENT_STATUS = [
+    {id:1,status:"Pending Ship Booking"},
+    {id:2,status:"Pending ODG Certificates"},
+    {id:3,status:"Pending ODG Certificates"},
+    {id:4,status:"Pending Custom Release"},
+    {id:5,status:"Pending Loading Permission"},
+    {id:6,status:"Pending Export Permit"},
+    {id:7,status:"Pending Screening"},
+    {id:8,status:"Pending Bill of Lading"},
+    {id:9,status:"Completed"},
+    {id:10,status:"Closed"}]
 //mysql pool
 const pool = mysql.createPool({
     socketPath: config.socket,
@@ -1084,7 +1094,6 @@ exports.getClientRoles = (user_id)=>{
                 }
                 else{
                     con.query(sql,(e,r)=>{
-                        con.release();
                         if(e){
                             console.error("db.getClientRoles(): ",e);
                             reject({code:1,msg:"Could not retrieve client roles",error:e});
@@ -1092,7 +1101,8 @@ exports.getClientRoles = (user_id)=>{
                         else{
                             resolve({code:0,msg:"Successful",data:r})
                         }
-                    })
+                    });
+                    con.release();
                 }
             })
             
@@ -1707,8 +1717,18 @@ exports.updateConsignmentFile = (data)=>{
                             else if(option.name == "ship booking" && consignment.status > 2) status = consignment.status;
                             else if(option.name == "shipping instructions" && consignment.status <= 1) status = 2;
                             else if(option.name == "shipping instructions" && consignment.status >1) status = consignment.status;
-                            else if(option.name == "certificates" && consignment.status <= 4) status = 5;
-                            else if(option.name == "certificates" && consignment.status > 5) status = consignment.status;
+                            else if(option.name.includes("ODG Certificate") && consignment.status <= 4) status = 5;
+                            else if(option.name.includes("ODG Certificate") && consignment.status > 5) status = consignment.status;
+                            else if(option.name =="custom release" && consignment.status <= 5) status = 6;
+                            else if(option.name =="custom release" && consignment.status > 6) status = consignment.status;
+                            else if(option.name =="loading permission" && consignment.status <= 6) status = 7;
+                            else if(option.name =="loading permission" && consignment.status > 7) status = consignment.status;
+                            else if(option.name =="export permission" && consignment.status <= 7) status = 8;
+                            else if(option.name =="export permission" && consignment.status > 8) status = consignment.status;
+                            else if(option.name =="screening report" && consignment.status <= 7) status = 8;
+                            else if(option.name =="screening report" && consignment.status > 8) status = consignment.status;
+                            else if(option.name =="bill of lading" && consignment.status <= 8) status = 9;
+                            else if(option.name =="bill of lading" && consignment.status > 9) status = consignment.status;
                             this.updateConsignmentStatus(data.user,status,data.cid)
                             .then(result=>{
                                 resolve(result);
@@ -2543,13 +2563,14 @@ exports.getContainers = (userId)=>{
     return new Promise((resolve,reject)=>{
         this.getUser(userId).then(result=>{
             var pool = getClientPool(result.data);
-            pool.getConnection((e,con)=>{
-                if(e){
-                    console.error(getTimeStamp()+" db.getContainers(): ",e);
-                    reject({code:1,msg:"Could not get connection to service",error:e});
-                }
-                else{
-                    doesTableExist("container_bookings",userId).then(exist=>{
+            
+            doesTableExist("container_bookings",userId).then(exist=>{
+                pool.getConnection((e,con)=>{
+                    if(e){
+                        console.error(getTimeStamp()+" db.getContainers(): ",e);
+                        reject({code:1,msg:"Could not get connection to service",error:e});
+                    }
+                    else{
                         con.release();
                         if(exist){
                             con.query("select * from container_bookings",(e,r)=>{
@@ -2565,14 +2586,14 @@ exports.getContainers = (userId)=>{
                         else{
                             resolve({code:0,msg:"successful",data:[]});
                         }
-                    })
-                    .catch(e=>{
-                        con.release();
-                        reject({code:1,msg:"Could not verify container table",error:e});
-                    })
-                    
-                }
+                    }
+                })
             })
+            .catch(e=>{
+                reject({code:1,msg:"Could not verify container table",error:e});
+            })
+                    
+          
         })
         .catch(e=>{
             console.error(getTimeStamp()+" db.getContainers(): ",e);
