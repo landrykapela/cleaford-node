@@ -3,14 +3,14 @@ const config = require("./config.json");
 const bcrypt = require("bcrypt");
 require("dotenv").config();
 const fs = require('fs');
-const { join, resolve } = require("path");
+
 //consignment status
 const CONSIGNMENT_STATUS = [
     {id:1,status:"Pending Ship Booking"},
     {id:2,status:"Pending Ship Booking"},
     {id:3,status:"Pending ODG Certificates"},
     {id:4,status:"Pending ODG Certificates"},
-    {id:5,status:"Pending Custom Release"},
+    {id:5,status:"Pending Custom Release"}, 
     {id:6,status:"Pending Loading Permission"},
     {id:7,status:"Pending Export Permit"},
     {id:8,status:"Pending Screening"},
@@ -2055,7 +2055,8 @@ exports.getAllConsignmentFiles = (userId)=>{
         this.getUser(userId).then(result=>{
             if(result.data){
                 var pool = getClientPool(result.data);
-                doesTableExist("user_files",userId).then(exist=>{
+                doesTableExist("user_files",userId)
+                .then(exist=>{
                     if(exist){
                         pool.getConnection((e,con)=>{
                             if(e){
@@ -2085,6 +2086,10 @@ exports.getAllConsignmentFiles = (userId)=>{
                     console.error(getTimeStamp()+" db.getConsignmentFiles(): ",e);
                     reject({code:1,msg:"Could not verify user files",error:e});
                 })
+            }
+            else{
+                console.error(getTimeStamp()+" db.getConsignmentFiles(): ");
+                reject({code:1,msg:"You need to login with a valid account"});
             }
         }).catch(e=>{
             console.error(getTimeStamp()+" db.getConsignmentFiles(): ",e);
