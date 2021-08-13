@@ -581,34 +581,15 @@ app.get("/booking/:userId",authenticateToken,(req,res)=>{
 
 //create containr booking
 app.post("/container/:userId",authenticateToken,(req,res)=>{
-  var data = {
-    user:req.params.userId,
-    mbl_number : req.body.mbl_number,
-    cid:req.body.cid,
-    container_type : req.body.container_type,
-    container_no : req.body.container_no,
-    container_size : req.body.container_size,
-    seal_1 : req.body.seal_1,
-    seal_2 : req.body.seal_2,
-    seal_3 : req.body.seal_3,
-    freight_indicator : req.body.freight_indicator,
-    no_of_packages : req.body.no_of_packages,
-    package_unit : req.body.package_unit,
-    volume : req.body.volume,
-    volume_unit : req.body.volume_unit,
-    weight : req.body.weight,
-    weight_unit : req.body.weight_unit,
-    max_temp : req.body.max_temp,
-    min_temp : req.body.min_temp,
-    plug_yn : req.body.plug_yn,
-    container_file:req.body.container_file
-  };
-  db.createContainer(data).then(result=>{
+  var data = req.body;
+  if(data.no_of_packages == "") data.no_of_packages = 0;
+  db.createContainer(parseInt(req.params.userId),data).then(result=>{
     res.status(201).json(result);
   })
   .catch(er=>{
     res.status(200).json(er);
   })
+  // res.status(200).json(items);
 })
 //create containr booking
 app.put("/container/:userId/:containerId",authenticateToken,(req,res)=>{

@@ -2423,12 +2423,8 @@ exports.getBookings = (userId)=>{
 }
 
 //create container
-exports.createContainer = (data)=>{
-    var userId = data.user;
-    var file = data.container_file;
-    delete data.user;
-    delete data.container_file;
-
+exports.createContainer = (userId,data)=>{
+    
     return new Promise((resolve,reject)=>{
         this.getUser(userId).then(result=>{
             if(result.data){
@@ -2442,113 +2438,90 @@ exports.createContainer = (data)=>{
                             reject({code:1,msg:"Could not get connection to service",error:e});
                         }
                         else{
-                            var insertSql = "insert into container_bookings (";
-                            var keys = Object.keys(data);
-                            var values = Object.values(data);
-                            keys.forEach(key=>{
-                                insertSql += key +", ";
-                            });
-                            insertSql += "date_modified) values (?)";
-                            values.push(Date.now());
-                            if(exist){
-                                con.query(insertSql,[values],(e,r)=>{
-                                    if(e){
-                                        console.error(getTimeStamp()+" db.createContainer(): ",e);
-                                        reject({code:1,msg:"Could not create new record",error:e});
-                                    }
-                                    else{
-                                        con.release();
-                                        if(file != null){
-                                            saveFile(file,{user:userId,target:"container_bookings",name:"container confirmation",refer_id:data.cid})
-                                            .then(done=>{
-                                                if(done && data.mbl_number){
-                                                    this.updateConsignmentStatus(userId,4,data.cid)
-                                                    .then(result=>{
-                                                        resolve(result);
-                                                    })
-                                                    .catch(e=>{
-                                                        reject(e);
-                                                    })
+                            con.beginTransaction((e)=>{
+                                if(e){
+                                    con.release();
+                                    console.error(getTimeStamp()+" db.createContainer(): ",e);
+                                    reject({code:1,msg:"Something went wrong. Please try again later",error:e});
+                                }
+                                else{
+                                    data.forEach(d=>{
+                                        var insertSql = (d.id == -1) ? "insert into container_bookings (" : "update container_bookings set ";
+                                        var keys = Object.keys(d);
+                                        var values = Object.values(d);
+                                        keys.forEach(key=>{
+                                            insertSql += (d.id == -1) ? key +", " : key +"=?, ";
+                                        });
+                                        insertSql += (d.id == -1) ? "date_modified) values (?)" : "date_modified=? where id=?";
+                                        values.push(Date.now());
+                                        if(d.id > 0) {
+                                            values.push(d.id);
+                                        }
+                                        else values = [values];
+                                        if(exist){
+                                            con.query(insertSql,values,(e,r)=>{
+                                                if(e){
+                                                    console.error(getTimeStamp()+" db.createContainer(): ",e);
+                                                    reject({code:1,msg:"Could not create new record",error:e});
                                                 }
                                                 else{
-                                                    this.getConsignments(userId)
-                                                    .then(result=>{
-                                                        resolve(result);
-                                                    }).catch(e=>{
-                                                        reject(e);
-                                                    })
-                                                }
-                                            })
-                                            .catch(e=>{
-                                                reject(e);
-                                            })
-                                        }
-                                        else{
-                                            this.getConsignments(userId)
-                                            .then(result=>{
-                                                resolve(result);
-                                            }).catch(e=>{
-                                                reject(e);
-                                            })
-                                        }
-                                    }
-                                })
-                            }
-                            else{
-                                var createSql = "create table container_bookings (id int(10) auto_increment primary key, cid int(10) not null, mbl_number varchar(50), container_type varchar(50) not null, container_no varchar(50) not null, container_size varchar(10) not null, ";
-                                createSql += "seal_1 varchar(50), seal_2 varchar(50), seal_3 varchar(50), freight_indicator varchar(50), no_of_packages int(4), package_unit varchar(50), volume varchar(5), volume_unit varchar(50), weight varchar(10) not null, weight_unit varchar(50), ";
-                                createSql += "max_temp varchar(5), min_temp varchar(50), plug_yn varchar(50) not null, date_modified bigint)";
-                                con.query(createSql,(e,r)=>{
-                                    if(e){
-                                            console.error(getTimeStamp()+" db.createContainer(): ",e);
-                                            reject({code:1,msg:"Could not create container table",error:e});
-                                    }
-                                    else{
-                                        con.query(insertSql,[values],(e,r)=>{
-                                            if(e){
-                                                console.error(getTimeStamp()+" db.createContainer(): ",e);
-                                                reject({code:1,msg:"Could not create new record",error:e});
-                                            }
-                                            else{
-                                                con.release();
-                                                if(file != null){
-                                                    saveFile(file,{user:userId,target:"container_bookings",name:"container confirmation",refer_id:data.cid})
-                                                    .then(done=>{
-                                                        if(done && data.mbl_number){
-                                                            this.updateConsignmentStatus(userId,4,data.cid)
-                                                            .then(result=>{
-                                                                resolve(result);
-                                                            })
-                                                            .catch(e=>{
-                                                                reject(e);
-                                                            })
-                                                        }
-                                                        else{
-                                                            this.getConsignments(userId)
+                                                    if(con.commit()){
+                                                        // con.release();
+                                                        this.getConsignments(userId)
                                                             .then(result=>{
                                                                 resolve(result);
                                                             }).catch(e=>{
                                                                 reject(e);
                                                             })
-                                                        }
-                                                    })
-                                                    .catch(e=>{
-                                                        reject(e);
-                                                    })
+                                                    }
+                                                    else{
+                                                        con.rollback((e)=>{
+                                                            con.release();
+                                                            if(e){
+                                                                console.error(getTimeStamp()+" db.createContainer(): ",e);
+                                                                reject({code:1,msg:"Somthing went wrong! Please try again later",error:e});
+                                                            }
+                                                        })
+                                                    }
+                                                    
+                                                }
+                                            })
+                                        }
+                                        else{
+                                            var createSql = "create table container_bookings (id int(10) auto_increment primary key, cid int(10) not null, mbl_number varchar(50), container_type varchar(50) not null, container_no varchar(50) not null, container_size varchar(10) not null, ";
+                                            createSql += "seal_1 varchar(50), seal_2 varchar(50), seal_3 varchar(50), freight_indicator varchar(50), no_of_packages int(4), package_unit varchar(50), volume varchar(5), volume_unit varchar(50), weight varchar(10) not null, weight_unit varchar(50), ";
+                                            createSql += "max_temp varchar(5), min_temp varchar(50), plug_yn varchar(50) not null, date_modified bigint)";
+                                            con.query(createSql,(e,r)=>{
+                                                if(e){
+                                                        console.error(getTimeStamp()+" db.createContainer(): ",e);
+                                                        reject({code:1,msg:"Could not create container table",error:e});
                                                 }
                                                 else{
-                                                    this.getConsignments(userId)
-                                                    .then(result=>{
-                                                        resolve(result);
-                                                    }).catch(e=>{
-                                                        reject(e);
-                                                    })
+                                                    con.query(insertSql,[values],(e,r)=>{
+                                                        if(e){
+                                                            console.error(getTimeStamp()+" db.createContainer(): ",e);
+                                                            reject({code:1,msg:"Could not create new record",error:e});
+                                                        }
+                                                        else{
+                                                            con.release();
+                                                            this.getConsignments(userId)
+                                                                .then(result=>{
+                                                                    resolve(result);
+                                                                }).catch(e=>{
+                                                                    reject(e);
+                                                                })
+                                                            
+                                                        }
+                                                    }) 
                                                 }
-                                            }
-                                        }) 
-                                    }
-                                })
-                            }
+                                            })
+                                        }
+                                    });
+                                    // con.release();
+                                }
+                            })
+                            
+                            
                         }
                     })
                     
