@@ -516,7 +516,8 @@ app.post("/user", (req, result) => {
         forwarder_code:req.body.forwarder_code,
         instructions_file:req.body.instructions_file
     }
-    if(!Object.values(data).includes(null)) data.status = 2;
+    if(!Object.values(data).includes(null) && data.status < 2) data.status = 2;
+
  
   db.updateConsignment(data)
   .then(result=>{

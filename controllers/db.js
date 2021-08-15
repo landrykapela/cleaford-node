@@ -1859,6 +1859,7 @@ exports.updateConsignment =(data)=>{
     delete data.id;
     delete data.user;
     delete data.instructions_file;
+    console.log("data: ",data);
     return new Promise((resolve,reject)=>{
         this.getUser(userId).then(result=>{
             var userData = result.data;
@@ -1920,8 +1921,6 @@ exports.updateConsignment =(data)=>{
                             var now = Date.now();
                             var keys = Object.keys(data);
                             var values = Object.values(data);
-                            var incomplete = values.includes(null);
-                            if(!incomplete) values[keys.indexOf("status")] = 2;
                             keys.forEach((key,index)=>{
                                 if(index < keys.length -1){
                                     updateSql += key +"=?, ";
