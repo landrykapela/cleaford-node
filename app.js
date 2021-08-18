@@ -624,6 +624,27 @@ app.put("/container/:userId/:containerId",authenticateToken,(req,res)=>{
     res.status(200).json(er);
   })
 })
+
+//quotations
+app.post("/quotations/:userId",authenticateToken,(req,res)=>{
+  var data = req.body;
+  db.createQuotation(req.params.userId,data)
+  .then(result=>{
+    res.status(201).json(result);
+  })
+  .catch(e=>{
+    res.status(200).json(e);
+  })
+  
+})
+//get quotation
+app.get("/quotations/:userId",authenticateToken,(req,res)=>{
+  db.getQuotations(req.params.userId).then(result=>{
+    res.status(200).json(result);
+  }).catch(er=>{
+    res.status(200).json(er);
+  })
+})
   //getpaymetn terms
   app.get("/payments",authenticateToken,(req,res)=>{
     db.getPaymentTerms().then(result=>{

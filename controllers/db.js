@@ -431,7 +431,7 @@ exports.createClientSpace = (userId)=>{
    
 }
 
-//create client
+// create client
 exports.createClient = (data)=>{
     return new Promise((resolve,reject)=>{
         pool.getConnection((err,conn)=>{
@@ -2661,6 +2661,198 @@ exports.getContainers = (userId)=>{
         })
         .catch(e=>{
             console.error(getTimeStamp()+" db.getContainers(): ",e);
+            reject(e)
+        })
+    })
+}
+
+//create quotation
+exports.createQuotation = (userId,data)=>{
+    return new Promise((resolve,reject)=>{
+        this.getUser(userId).then(result=>{
+            var pool = getClientPool(result.data);
+            doesTableExist("quotations",userId)
+                .then(exist=>{
+                    var keys = Object.keys(data);
+                    var values = Object.values(data);
+                    if(exist){
+                        var sql = "insert into quotations (";
+                        
+                        keys.forEach(key=>{
+                            sql += key+", "
+                        })
+                        sql += "date_created,date_modified) values(?) ";
+                        values.push(Date.now());
+                        values.push(Date.now());
+                        pool.getConnection((e,con)=>{
+                            if(e){
+                                console.error(getTimeStamp()+" db.createQuotation(): ",e);
+                                reject({code:1,msg:"Could not get connection to service",error:e});
+                            }
+                            else{
+                                con.beginTransaction((e)=>{
+                                    if(e){
+                                        con.destroy();
+                                    }
+                                    else{
+                                        con.query(sql,[values],(e,r)=>{
+                                            if(e){
+                                                console.error(getTimeStamp()+" db.createQuotation(): ",e);
+                                                reject({code:1,msg:"Could not create record",error:e});
+                                                con.destroy()
+                                            }
+                                            else{
+                                                if(con.commit()){
+                                                    con.release();
+                                                    this.getQuotations(userId)
+                                                    .then(rs=>{
+                                                        resolve({code:0,msg:"successful",data:rs.data});
+                                                    })
+                                                    .catch(e=>{
+                                                        resolve(result);
+                                                    })
+                                                }
+                                                else{
+                                                    con.rollback((e)=>{
+                                                        con.destroy();
+                                                        reject({code:1,msg:"Could not create record",error:e})
+                                                    })
+                                                    
+                                                }
+                                                
+                                            }
+                                        })
+                                    }
+                                })
+                            }
+                        })
+                        
+                        
+                    }
+                    else{
+                        var createSql = "create table quotations (id int(10) auto_increment primary key, ";
+                        keys.forEach(key=>{
+                            if(key.toLowerCase() == "quantity") createSql += key+ " int(5), ";
+                            else if(key.toLowerCase() == "customer_id") createSql += key+" int(10), ";
+                            else createSql += key +" varchar(100), ";
+                        });
+                        createSql += "date_created bigint,date_modified bigint)";
+                        pool.getConnection((e,con)=>{
+                            if(e){
+                                console.error(getTimeStamp()+" db.createQuotation(): ",e);
+                                reject({code:1,msg:"Could not get connection to service",error:e});
+                            }
+                            else{
+                                con.beginTransaction((e)=>{
+                                    if(e){
+                                        con.destroy();
+                                    }
+                                    else{
+                                        con.query(createSql,(e,r)=>{
+                                            if(e){
+                                                console.error(getTimeStamp()+" db.createBooking(): ",e);
+                                                reject({code:1,msg:"Could not create shipping table",error:e});
+                                            }
+                                            else{
+                                                var sql = "insert into quotations (";
+                                        
+                                                keys.forEach(key=>{
+                                                sql += key+", "
+                                                })
+                                                sql += "date_created,date_modified) values(?) ";
+                                                values.push(Date.now());
+                                                values.push(Date.now());
+                                                
+                                                con.query(sql,[values],(e,r)=>{
+                                                    if(e){
+                                                        console.error(getTimeStamp()+" db.createQuotation(): ",e);
+                                                        reject({code:1,msg:"Could not create record",error:e});
+                                                        con.destroy()
+                                                    }
+                                                    else{
+                                                        if(con.commit()){
+                                                            con.release();
+                                                            this.getQuotations(userId)
+                                                            .then(rs=>{
+                                                                resolve({code:0,msg:"successful",data:rs.data});
+                                                            })
+                                                            .catch(e=>{
+                                                                resolve(result);
+                                                            })
+                                                        }
+                                                        else{
+                                                            con.rollback((e)=>{
+                                                                con.destroy();
+                                                                reject({code:1,msg:"Could not create record",error:e})
+                                                            })
+                                                            
+                                                        }
+                                                        
+                                                    }
+                                                })
+                                                
+                                            }
+                                        })
+                                    }
+                                });
+                            }
+                        })
+                    }
+                })
+                .catch(e=>{
+                    console.error(getTimeStamp()+" db.createQuotation(): ",e);
+                    reject({code:1,msg:"Could not verify table",error:e});
+                })
+        })
+        .catch(e=>{
+            console.error(getTimeStamp()+" db.createQuotation(): ",e);
+            reject({code:1,msg:"You must be logged in to access this resource",error:e});
+        })
+    })
+   
+}
+
+//get quotations
+//get containers
+exports.getQuotations = (userId)=>{
+    return new Promise((resolve,reject)=>{
+        this.getUser(userId).then(result=>{
+            var pool = getClientPool(result.data);
+            
+            doesTableExist("quotations",userId).then(exist=>{
+                pool.getConnection((e,con)=>{
+                    if(e){
+                        console.error(getTimeStamp()+" db.getQuotations(): ",e);
+                        reject({code:1,msg:"Could not get connection to service",error:e});
+                    }
+                    else{
+                        if(exist){
+                            con.query("select * from quotations",(e,r)=>{
+                                if(e){
+                                    console.error(getTimeStamp()+" db.getQuotations(): ",e);
+                                    reject({code:1,msg:"Could not retrieve quotations data",error:e});
+                                }
+                                else{
+                                    resolve({code:0,msg:"successful",data:r});
+                                }
+                                con.release();
+                                con.destroy();
+                            })
+                        }
+                        else{
+                            resolve({code:0,msg:"successful",data:[]});
+                        }
+                    }
+                })
+            })
+            .catch(e=>{
+                reject({code:1,msg:"Could not verify quotation table",error:e});
+            })
+                    
+          
+        })
+        .catch(e=>{
+            console.error(getTimeStamp()+" db.getQuotations(): ",e);
             reject(e)
         })
     })
