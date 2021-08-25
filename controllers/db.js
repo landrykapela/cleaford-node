@@ -1624,67 +1624,92 @@ exports.getConsignments = (userId)=>{
         .then(result=>{
             if(result.data){
                 var pool = getClientPool(result.data);
-                pool.getConnection((e,con)=>{
-                    if(e){
-                        console.error(getTimeStamp()+" db.getConsignment(): ",e);
-                        reject({code:1,msg:"Could not get connection to service",error:e});
-                    }
-                    else{
-                        con.query("select * from consignments_tb order by id desc",(e,r)=>{
-                            con.release();
-                            if(e){
-                                console.error(getTimeStamp()+" db.getConsignment(): ",e);
-                                reject({code:1,msg:"Could not get consignments",error:e});
-
+                doesTableExist("consignments_tb",userId).then(exist=>{
+                    pool.getConnection((e,con)=>{
+                        if(e){
+                            console.error(getTimeStamp()+" db.getConsignment(): ",e);
+                            reject({code:1,msg:"Could not get connection to service",error:e});
+                        }
+                        else{
+                            if(exist){
+                                con.query("select * from consignments_tb order by id desc",(e,r)=>{
+                                    con.release();
+                                    con.destroy();
+                                    if(e){
+                                        console.error(getTimeStamp()+" db.getConsignment(): ",e);
+                                        reject({code:1,msg:"Could not get consignments",error:e});
+        
+                                    }
+                                    else{
+                                        let consignments = r.map(i=>{
+                                            i.status_text = CONSIGNMENT_STATUS.filter(s=>s.id == i.status)[0].status;
+                                            return i;
+                                        });
+                                        this.getAllConsignmentFiles(userId)
+                                        .then(result=>{
+                                            consginments = r.map(c=>{
+                                                let i = c;
+                                                i.files = result.data.filter(d=>d.refer_id == c.id);
+                                                return i;
+                                            });
+                                            let consignmentsWithShipping = consignments;
+                                            this.getBookings(userId)
+                                            .then(result=>{
+                                                consignmentsWithShipping = consignments.map(c=>{
+                                                    let cs = c;
+                                                    cs.shipping_details = result.data.filter(sd=>sd.cid == c.id)[0];
+                                                    return cs;
+                                                })
+                                            })
+                                            .catch(e=>{
+                                                console.error(getTimeStamp()+" db.getConsignments(): ",e);
+                                            })
+                                            .finally(()=>{
+                                                let newCons = consignmentsWithShipping;
+                                                this.getContainers(userId).then(result=>{
+                                                    newCons = consignmentsWithShipping.map(c=>{
+                                                        let cs = c;
+                                                        cs.container_details = result.data.filter(rs=>rs.cid == c.id)
+                                                        return cs;
+                                                    })
+                                                })
+                                                .catch(e=>{
+                                                    console.error(getTimeStamp()+" db.getConsignments(): ",e);
+                                                })
+                                                .finally(()=>{
+                                                    resolve({code:0,"msg":"successful",data:newCons});
+                                                })
+                                            })
+                                        }).catch(e=>{
+                                            console.error(getTimeStamp()+" db.getConsignments(): ",e);
+                                            reject({code:1,msg:"Could not get consignment fiels",error:e});
+                                        })
+                                       
+                                    }
+                                })
                             }
                             else{
-                                let consignments = r.map(i=>{
-                                    i.status_text = CONSIGNMENT_STATUS.filter(s=>s.id == i.status)[0].status;
-                                    return i;
-                                });
-                                this.getAllConsignmentFiles(userId)
-                                .then(result=>{
-                                    consginments = r.map(c=>{
-                                        let i = c;
-                                        i.files = result.data.filter(d=>d.refer_id == c.id);
-                                        return i;
-                                    });
-                                    let consignmentsWithShipping = consignments;
-                                    this.getBookings(userId)
-                                    .then(result=>{
-                                        consignmentsWithShipping = consignments.map(c=>{
-                                            let cs = c;
-                                            cs.shipping_details = result.data.filter(sd=>sd.cid == c.id)[0];
-                                            return cs;
-                                        })
-                                    })
-                                    .catch(e=>{
-                                        console.error(getTimeStamp()+" db.getConsignments(): ",e);
-                                    })
-                                    .finally(()=>{
-                                        let newCons = consignmentsWithShipping;
-                                        this.getContainers(userId).then(result=>{
-                                            newCons = consignmentsWithShipping.map(c=>{
-                                                let cs = c;
-                                                cs.container_details = result.data.filter(rs=>rs.cid == c.id)
-                                                return cs;
-                                            })
-                                        })
-                                        .catch(e=>{
-                                            console.error(getTimeStamp()+" db.getConsignments(): ",e);
-                                        })
-                                        .finally(()=>{
-                                            resolve({code:0,"msg":"successful",data:newCons});
-                                        })
-                                    })
-                                }).catch(e=>{
-                                    console.error(getTimeStamp()+" db.getConsignments(): ",e);
-                                    reject({code:1,msg:"Could not get consignment fiels",error:e});
+                                let sql = "create table if not exists consignments_tb (id int(10) auto_increment primary key, status int(2) default 1, date_created bigint, date_modified bigint, cargo_classification varchar(100),place_of_destination varchar(100), place_of_delivery varchar(100),port_of_discharge varchar(100),port_of_origin varchar(100),";
+                                sql += "no_of_containers varchar(100), goods_description varchar(100), no_of_packages varchar(100),package_unit varchar(100),gross_weight varchar(100),gross_weight_unit varchar(100),gross_volume varchar(100), gross_volume_unit varchar(100),net_weight varchar(100),net_weight_unit varchar(100), invoice_value varchar(100), invoice_currency varchar(100),freight_charge varchar(100),freight_currency varchar(100),imdg_code varchar(100),packing_type varchar(100),oil_type varchar(100),shipping_mark varchar(100),user int(10) not null,";
+                                sql += "consignee_name varchar(255), consignee_phone varchar(15), consignee_address varchar(255), consignee_tin varchar(20), notify_name varchar(255), notify_phone varchar(15), notify_address varchar(255), notify_tin varchar(20), exporter_id int(6), forwarder_id int(10), forwarder_code varchar(20)) ";
+                                con.query(sql,(e,r)=>{
+                                    if(e){
+                                        console.error(getTimeStamp()+" db.createConsignment(): ",e);
+                                        reject({code:1,msg:"Could not create consignment table",error:e});
+                                    }
+                                    else{
+                                        resolve({code:0,"msg":"successful",data:newCons});
+                                    }
+                                    con.release();
+                                    con.destroy();
                                 })
-                               
                             }
-                        })
-                    }
+                        }
+                    })
+                
+                }).catch(e=>{
+                    console.error(getTimeStamp()+" db.getConsignments() :",e);
+                reject({code:1,msg:"Could not verify if consignment table exists",error:e})
                 })
             }
             else{
@@ -2709,7 +2734,7 @@ exports.createQuotation = (userId,data)=>{
                                                         resolve({code:0,msg:"successful",data:rs.data});
                                                     })
                                                     .catch(e=>{
-                                                        resolve(result);
+                                                        reject({code:1,msg:"Could not retrieve updated list of consignments",error:e});
                                                     })
                                                 }
                                                 else{
@@ -2812,8 +2837,77 @@ exports.createQuotation = (userId,data)=>{
    
 }
 
-//get quotations
-//get containers
+//update quotation
+exports.updateQuotation = (userId,data)=>{
+    var customerId = data.id;
+    delete data.id;
+    return new Promise((resolve,reject)=>{
+        this.getUser(userId).then(result=>{
+            var pool = getClientPool(result.data);
+            var keys = Object.keys(data);
+            var values = Object.values(data);
+            
+            var sql = "update quotations set ";
+            
+            keys.forEach(key=>{
+                sql += key+"=?, "
+            })
+            sql += "date_modified=? where id=?";
+            values.push(Date.now());
+            values.push(customerId);
+            pool.getConnection((e,con)=>{
+                if(e){
+                    console.error(getTimeStamp()+" db.upateQuotation(): ",e);
+                    reject({code:1,msg:"Could not get connection to service",error:e});
+                }
+                else{
+                    con.beginTransaction((e)=>{
+                        if(e){
+                            con.destroy();
+                        }
+                        else{
+                            con.query(sql,values,(e,r)=>{
+                                if(e){
+                                    console.error(getTimeStamp()+" db.updateQuotation(): ",e);
+                                    reject({code:1,msg:"Could not update record",error:e});
+                                    con.destroy()
+                                }
+                                else{
+                                    if(con.commit()){
+                                        con.release();
+                                        this.getQuotations(userId)
+                                        .then(rs=>{
+                                            resolve({code:0,msg:"successful",data:rs.data});
+                                        })
+                                        .catch(e=>{
+                                            reject({code:1,msg:"Could not retrieve updated list of consignments",error:e});
+                                        })
+                                    }
+                                    else{
+                                        con.rollback((e)=>{
+                                            con.destroy();
+                                            reject({code:1,msg:"Could not create record",error:e})
+                                        })
+                                        
+                                    }
+                                    
+                                }
+                            })
+                        }
+                    })
+                }
+            })
+             
+        })
+        .catch(e=>{
+            console.error(getTimeStamp()+" db.createQuotation(): ",e);
+            reject({code:1,msg:"You must be logged in to access this resource",error:e});
+        })
+    })
+   
+}
+
+//get quotation
 exports.getQuotations = (userId)=>{
     return new Promise((resolve,reject)=>{
         this.getUser(userId).then(result=>{
@@ -2827,7 +2921,7 @@ exports.getQuotations = (userId)=>{
                     }
                     else{
                         if(exist){
-                            con.query("select * from quotations",(e,r)=>{
+                            con.query("select * from quotations ",(e,r)=>{
                                 if(e){
                                     console.error(getTimeStamp()+" db.getQuotations(): ",e);
                                     reject({code:1,msg:"Could not retrieve quotations data",error:e});

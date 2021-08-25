@@ -171,6 +171,7 @@ app.post("/customer",authenticateToken,(req,res)=>{
 app.put("/customer/:customer_id",authenticateToken,(req,res)=>{
   let customer_id = req.params.customer_id;
   let data = {tin:req.body.tin,id:customer_id,region:req.body.region,user:req.body.user,name:req.body.name,address:req.body.address,email:req.body.email,phone:req.body.phone,contact_person:req.body.contact_person,contact_email:req.body.contact_email,country:req.body.country}; 
+  // console.log("tst: ",data);
   db.updateCustomer(data)
     .then(result=>{
       res.status(201).json(result);
@@ -629,6 +630,19 @@ app.put("/container/:userId/:containerId",authenticateToken,(req,res)=>{
 app.post("/quotations/:userId",authenticateToken,(req,res)=>{
   var data = req.body;
   db.createQuotation(req.params.userId,data)
+  .then(result=>{
+    res.status(201).json(result);
+  })
+  .catch(e=>{
+    res.status(200).json(e);
+  })
+  
+})
+
+//update quotations
+app.put("/quotations/:userId",authenticateToken,(req,res)=>{
+  var data = req.body;
+  db.updateQuotation(req.params.userId,data)
   .then(result=>{
     res.status(201).json(result);
   })
