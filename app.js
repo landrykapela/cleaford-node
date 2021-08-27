@@ -158,7 +158,7 @@ app.get("/clients",authenticateToken,(req,res)=>{
 
 //create customer
 app.post("/customer",authenticateToken,(req,res)=>{
-  let data = {tin:req.body.tin,region:req.body.region,user:req.body.user,name:req.body.company_name,address:req.body.address,email:req.body.email,phone:req.body.phone,contact_person:req.body.contact_person,contact_email:req.body.contact_email,country:req.body.country,db:req.body.db}; 
+  let data = req.body;//{tin:req.body.tin,region:req.body.region,user:req.body.user,name:req.body.company_name,address:req.body.address,email:req.body.email,phone:req.body.phone,contact_person:req.body.contact_person,contact_email:req.body.contact_email,country:req.body.country,db:req.body.db}; 
   db.createCustomer(data)
   .then(result=>{
     res.status(201).json(result);
@@ -170,8 +170,9 @@ app.post("/customer",authenticateToken,(req,res)=>{
 //update customer
 app.put("/customer/:customer_id",authenticateToken,(req,res)=>{
   let customer_id = req.params.customer_id;
-  let data = {tin:req.body.tin,id:customer_id,region:req.body.region,user:req.body.user,name:req.body.name,address:req.body.address,email:req.body.email,phone:req.body.phone,contact_person:req.body.contact_person,contact_email:req.body.contact_email,country:req.body.country}; 
-  // console.log("tst: ",data);
+  let data = req.body;
+  data.id = customer_id;
+  // console.log("d: ",data);
   db.updateCustomer(data)
     .then(result=>{
       res.status(201).json(result);

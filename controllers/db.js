@@ -122,7 +122,9 @@ const saveFile = (encodedData,options)=>{
                         var filename = (options.filename) ? options.filename.split(".")[0]+ext : name+ext;
                         if(options.name) name = options.name; 
                         console.log("writing file...");
-                        fs.writeFile("data/"+filename,data,{encoding:'base64'},(e)=>{
+                        var path = "data/"+ ((options.target.toLowerCase() == "customer_tb") ? "customers/" :"");
+                        path += filename;
+                        fs.writeFile(path,data,{encoding:'base64'},(e)=>{
                             if(e) {
                             console.error(getTimeStamp()+" db.saveFile() writing error: ",e);
                             reject(false);
@@ -131,14 +133,14 @@ const saveFile = (encodedData,options)=>{
                                 console.log("creating db record of file");
                                 var sql = "insert into user_files (name,refer_id,target,filename) values(?) on duplicate key update name=values(name),target=values(target)";
                                 var values = [[name,options.refer_id,options.target,filename]];
-                                if(options.filename) {
+                                if(options.isUpdate) {
                                     sql = "update user_files set filename=? where refer_id=? and name=?";
                                     values = [filename,options.refer_id,options.name];
                                 }
                                 pool.getConnection((e,con)=>{
                                     if(e){
                                         console.log("no connection to db; deleting file...");
-                                        fs.unlink("data/"+filename,(e)=>{
+                                        fs.unlink(path,(e)=>{
                                             if(e) console.error(getTimeStamp()+" saveFile() deleting: ",e);
                                         })
                                         console.error(getTimeStamp()+" saveFile() no connection: ",e);
@@ -149,7 +151,7 @@ const saveFile = (encodedData,options)=>{
                                             con.release();
                                             if(e){
                                                 console.log("error inserting record; deleting file...");
-                                                fs.unlink("data/"+filename,(e)=>{
+                                                fs.unlink(path,(e)=>{
                                                     if(e) console.error(getTimeStamp()+" saveFile() deleting: ",e);
                                                 })
                                                 console.error(getTimeStamp()+" saveFile() sql: ",e);
@@ -576,6 +578,10 @@ exports.getClientById = (clientId)=>{
 
 //create customer record
 exports.createCustomer=(data)=>{
+    var inc_cert = data.inc_cert;
+    var tin_cert = data.tin_cert;
+    delete data.inc_cert;
+    delete data.tin_cert;
     return new Promise((resolve,reject)=>{
         this.getUser(data.user)
         .then(result=>{
@@ -592,7 +598,7 @@ exports.createCustomer=(data)=>{
                             reject({code:1,msg:"Something went wrong. Please try again later",error:e});
                         }
                         else{
-                            let sql = "create table if not exists customer_tb (id int(10) auto_increment primary key,name varchar(50) not null, email varchar(255) unique not null,address varchar(255),region varchar(50), country varchar(50),contact_person varchar(50),contact_email varchar(50),phone varchar(15) not null,tin varchar(20))";
+                            let sql = "create table if not exists customer_tb (id int(10) auto_increment primary key,name varchar(50) not null, email varchar(255) unique not null,address varchar(255),region varchar(50), country varchar(50),contact_person varchar(50),contact_email varchar(50),phone varchar(15) not null,tin varchar(20),tin_file varchar(50),incorporation_file varchar(50))";
                             conn.query(sql,(e,r)=>{
                                 if(e){
                                     conn.rollback((e)=>{
@@ -602,44 +608,183 @@ exports.createCustomer=(data)=>{
                                     });
                                 }
                                 else{
-                                    conn.commit((e)=>{
+                                   
+                                    let sql = "insert into customer_tb (tin,name,address,region,country,email,phone,contact_email,contact_person) values(?) on duplicate key update region=values(region),contact_email=values(contact_email),country=values(country),address=values(address),phone=values(phone),contact_person=values(contact_person)";
+                                    let values = [data.tin,data.company_name,data.address,data.region,data.country,data.email,data.phone,data.contact_email,data.contact_person];
+                                    conn.query(sql,[values],(e,r)=>{
                                         if(e){
-                                            conn.release();
-                                            console.error("db.createCustomer(): ",e);
-                                            reject({code:1,msg:"Could not create customer",error:e});                                                  
-                                        }
-                                        else{
-
-                                            let sql = "insert into customer_tb (tin,name,address,region,country,email,phone,contact_email,contact_person) values(?) on duplicate key update region=values(region),contact_email=values(contact_email),country=values(country),address=values(address),phone=values(phone),contact_person=values(contact_person)";
-                                            let values = [data.tin,data.name,data.address,data.region,data.country,data.email,data.phone,data.contact_email,data.contact_person];
-                                            conn.query(sql,[values],(e,r)=>{
-                                                if(e){
-                                                    conn.rollback(error=>{
-                                                        if(error){
-                                                            console.error("db.createCustomer(): ",error);
-                                                            reject({code:1,msg:"Could not create customer",error:error});
-                                                        
-                                                        }
-                                                        else{
-                                                            console.error("db.createCustomer(): ",e);
-                                                            reject({code:1,msg:"Could not create customer",error:e});
-                                                        }
-                                                    })
+                                            conn.rollback(error=>{
+                                                if(error){
+                                                    console.error("db.createCustomer(): ",error);
+                                                    reject({code:1,msg:"Could not create customer",error:error});
+                                                
                                                 }
                                                 else{
-                                                    conn.release();
-                                                    this.getCustomersList(data.user).then(result=>{
-                                                        resolve(result);
-                                                    })
-                                                    .catch(er=>{
-                                                    reject(er);
-                                                    })
+                                                    console.error("db.createCustomer(): ",e);
+                                                    reject({code:1,msg:"Could not create customer",error:e});
                                                 }
                                             })
-
+                                        }
+                                        else{
+                                            if(tin_cert != null){
+                                                var filename = data.tin_file;
+                                                var isUpdate = true;
+                                                if(filename ==null || filename == undefined){
+                                                    var ext = tin_cert.split(";base64,")[0].split("/")[1];
+                                                    filename = randomString(10)+"."+ext;
+                                                    isUpdate = false;
+                                                }
+                                                saveFile(tin_cert,{name:"TIN Certificate",user:data.user,refer_id:r.insertId,target:"customer_tb",filename:filename,isUpdate:isUpdate})
+                                                .then(successful=>{
+                                                    if(successful){
+                                                        conn.query("update customer_tb set tin_file=? where id=?",[filename,r.insertId],(e,rs)=>{
+                                                            if(e){
+                                                                conn.rollback((e)=>{
+                                                                    console.error("db.updateCustomer(): ",e);
+                                                                    reject({code:1,msg:"Could not update incoropration certificate file info"});
+                                                                    conn.destroy();
+                                                                })
+                                                            }
+                                                            else{
+                                                                if(inc_cert != null){
+                                                                    var filename = data.incorporation_file;
+                                                                    var isUpdate = true;
+                                                                    if(filename ==null || filename == undefined){
+                                                                        var ext = inc_cert.split(";base64,")[0].split("/")[1];
+                                                                        filename = randomString(10)+"."+ext;
+                                                                        isUpdate = false;
+                                                                    }
+                                                                    saveFile(inc_cert,{name:"Incorporation Certificate",user:data.user,refer_id:r.insertId,target:"customer_tb",filename:filename,isUpdate:isUpdate})
+                                                                    .then(successful=>{
+                                                                        if(successful){
+                                                                            conn.query("update customer_tb set incorporation_file=? where id=?",[filename,r.insertId],(e,rs)=>{
+                                                                                if(e){
+                                                                                    conn.rollback((er)=>{
+                                                                                        console.error("db.createCustomer(): ",er);
+                                                                                        reject({code:1,msg:"Could not update incoropration certificate file info"});
+                                                                                        conn.destroy();
+                                                                                    })
+                                                                                }
+                                                                                else{
+                                                                                    if(conn.commit()){
+                                                                                        this.getCustomersList(data.user)
+                                                                                        .then(result=>{
+                                                                                            resolve(result);
+                                                                                        })
+                                                                                        .catch(err=>{
+                                                                                            console.error("db.createCustomer(): ",err);
+                                                                                            reject(err);
+                                                                                        })
+                                                                                        .finally(()=>{
+                                                                                            conn.release();
+                                                                                            conn.destroy();
+                                                                                        })
+                                                                                    }
+                                                                                    else{
+                                                                                        conn.rollback((er)=>{
+                                                                                            console.error("db.createCustomer(): ",er);
+                                                                                            reject({code:1,msg:"Could not update incoropration certificate file info"});
+                                                                                            conn.destroy();
+                                                                                        })
+                                                                                    }
+                                                                                    
+                                                                                }
+                                                                            });
+                                                                        }
+                                                                        else{
+                                                                            conn.rollback((er)=>{
+                                                                                console.error("db.createCustomer(): ",er);
+                                                                                reject({code:1,msg:"Could not save certificate file"});
+                                                                                conn.destroy();
+                                                                            })
+                                                                        }
+                                                                    })
+                                                                    .catch(e=>{
+                                                                        conn.rollback((er)=>{
+                                                                            console.error("db.createCustomer(): ",er);
+                                                                            reject({code:1,msg:"Failed not save certificate file"});
+                                                                            conn.destroy();
+                                                                        })
+                                                                    })
+                                            
+                                                                }
+                                                                else{
+                                                                    if(conn.commit()){
+                                                                        this.getCustomersList(data.user)
+                                                                        .then(result=>{
+                                                                            resolve(result);
+                                                                        })
+                                                                        .catch(err=>{
+                                                                            console.error("db.updateCustomer(): ",err);
+                                                                            reject(err);
+                                                                        })
+                                                                        conn.release();
+                                                                        conn.destroy();
+                                                                    }
+                                                                    else{
+                                                                        conn.rollback((er)=>{
+                                                                            console.error("db.createCustomer(): ",er);
+                                                                            reject({code:1,msg:"Failed not save certificate file"});
+                                                                            conn.destroy();
+                                                                        })
+                                                                    }
+                                                                }
+                                                            }
+                                                        })
+                                                        
+                                                    }
+                                                    else{
+                                                        reject({code:1,msg:"Could not save TIN certificate file"})
+                                                    }
+                                                })
+                        
+                                            }
+                                            else{
+                                                if(inc_cert != null){
+                                                    var filename = data.incorporation_file;
+                                                    var isUpdate = true;
+                                                    if(filename ==null || filename == undefined){
+                                                        var ext = inc_cert.split(";base64,")[0].split("/")[1];
+                                                        filename = randomString(10)+"."+ext;
+                                                        isUpdate = false;
+                                                    }
+                                                    saveFile(inc_cert,{name:"Incorporation Certificate",user:data.user,refer_id:r.insertId,target:"customer_tb",filename:filename,isUpdate:isUpdate})
+                                                    .then(successful=>{
+                                                        if(successful){
+                                                            pool.query("update customer_tb set incorporation_file=? where id=?",[filename,r.insertId],(e,r)=>{
+                                                                if(e){
+                                                                    console.error("db.updateCustomer(): ",e);
+                                                                    reject({code:1,msg:"Could not update incoropration certificate file info"});
+                                                                }
+                                                                else{
+                                                                    this.getCustomersList(data.user)
+                                                                    .then(result=>{
+                                                                        resolve(result);
+                                                                    })
+                                                                    .catch(err=>{
+                                                                        console.error("db.updateCustomer(): ",err);
+                                                                        reject(err);
+                                                                    })
+                                                                }
+                                                            })
+                                                            
+                                                        }
+                                                        else{
+                                                            console.error("db.updateCustomer(): ");
+                                                            reject({code:1,msg:"Could not save certificate file"});  
+                                                        }
+                                                    })
+                                                    .catch(e=>{
+                                                        console.error("db.updateCustomer(): ",e);
+                                                        reject({code:1,msg:"Failed save certificate file"});
+                                                    })
+                            
+                                                }
+                                            }
+                                           
                                         }
                                     })
-                                    
+
                                 }
                             })
                         }
@@ -658,6 +803,10 @@ exports.createCustomer=(data)=>{
 }
 //update customer
 exports.updateCustomer = (data)=>{
+    var inc_cert = data.inc_cert;
+    var tin_cert = data.tin_cert;
+    delete data.inc_cert;
+    delete data.tin_cert;
     return new Promise((resolve,reject)=>{
         this.getUser(data.user)
         .then(result=>{
@@ -670,14 +819,124 @@ exports.updateCustomer = (data)=>{
                     reject({code:1,msg:"Could not update customer record",error:e});
                 }
                 else{
-                    this.getCustomersList(data.user)
-                    .then(result=>{
-                        resolve(result);
-                    })
-                    .catch(err=>{
-                        console.error("db.updateCustomer(): ",err);
-                        reject(err);
-                    })
+                    if(tin_cert != null){
+                        var filename = data.tin_file;
+                        var isUpdate = true;
+                        if(filename ==null || filename == undefined){
+                            var ext = tin_cert.split(";base64,")[0].split("/")[1];
+                            filename = randomString(10)+"."+ext;
+                            isUpdate = false;
+                        }
+                        saveFile(tin_cert,{name:"TIN Certificate",user:data.user,refer_id:data.id,target:"customer_tb",filename:filename,isUpdate:isUpdate})
+                        .then(successful=>{
+                            if(successful){
+                                pool.query("update customer_tb set tin_file=? where id=?",[filename,data.id],(e,r)=>{
+                                    if(e){
+                                        console.error("db.updateCustomer(): ",e);
+                                        reject({code:1,msg:"Could not update incoropration certificate file info"});
+                                    }
+                                    else{
+                                        if(inc_cert != null){
+                                            var filename = data.incorporation_file;
+                                            var isUpdate = true;
+                                            if(filename ==null || filename == undefined){
+                                                var ext = inc_cert.split(";base64,")[0].split("/")[1];
+                                                filename = randomString(10)+"."+ext;
+                                                isUpdate = false;
+                                            }
+                                            saveFile(inc_cert,{name:"Incorporation Certificate",user:data.user,refer_id:data.id,target:"customer_tb",filename:filename,isUpdate:isUpdate})
+                                            .then(successful=>{
+                                                if(successful){
+                                                    pool.query("update customer_tb set incorporation_file=? where id=?",[filename,data.id],(e,r)=>{
+                                                        if(e){
+                                                            console.error("db.updateCustomer(): ",e);
+                                                            reject({code:1,msg:"Could not update incoropration certificate file info"});
+                                                        }
+                                                        else{
+                                                            this.getCustomersList(data.user)
+                                                            .then(result=>{
+                                                                resolve(result);
+                                                            })
+                                                            .catch(err=>{
+                                                                console.error("db.updateCustomer(): ",err);
+                                                                reject(err);
+                                                            })
+                                                        }
+                                                    });
+                                                }
+                                                else{
+                                                    console.error("db.updateCustomer(): ");
+                                                    reject({code:1,msg:"Could not save certificate file"});  
+                                                }
+                                            })
+                                            .catch(e=>{
+                                                console.error("db.updateCustomer(): ",e);
+                                                reject({code:1,msg:"Failed save certificate file"});
+                                            })
+                    
+                                        }
+                                        else{
+                                            this.getCustomersList(data.user)
+                                                .then(result=>{
+                                                    resolve(result);
+                                                })
+                                                .catch(err=>{
+                                                    console.error("db.updateCustomer(): ",err);
+                                                    reject(err);
+                                                })
+                                        }
+                                    }
+                                })
+                                
+                            }
+                            else{
+                                reject({code:1,msg:"Could not save TIN certificate file"})
+                            }
+                        })
+
+                    }
+                    else{
+                        if(inc_cert != null){
+                            var filename = data.incorporation_file;
+                            var isUpdate = true;
+                            if(filename ==null || filename == undefined){
+                                var ext = inc_cert.split(";base64,")[0].split("/")[1];
+                                filename = randomString(10)+"."+ext;
+                                isUpdate = false;
+                            }
+                            saveFile(inc_cert,{name:"Incorporation Certificate",user:data.user,refer_id:data.id,target:"customer_tb",filename:filename,isUpdate:isUpdate})
+                            .then(successful=>{
+                                if(successful){
+                                    pool.query("update customer_tb set incorporation_file=? where id=?",[filename,data.id],(e,r)=>{
+                                        if(e){
+                                            console.error("db.updateCustomer(): ",e);
+                                            reject({code:1,msg:"Could not update incoropration certificate file info"});
+                                        }
+                                        else{
+                                            this.getCustomersList(data.user)
+                                            .then(result=>{
+                                                resolve(result);
+                                            })
+                                            .catch(err=>{
+                                                console.error("db.updateCustomer(): ",err);
+                                                reject(err);
+                                            })
+                                        }
+                                    })
+                                    
+                                }
+                                else{
+                                    console.error("db.updateCustomer(): ");
+                                    reject({code:1,msg:"Could not save certificate file"});  
+                                }
+                            })
+                            .catch(e=>{
+                                console.error("db.updateCustomer(): ",e);
+                                reject({code:1,msg:"Failed save certificate file"});
+                            })
+    
+                        }
+                    }
                 }
             })
         })
@@ -709,7 +968,21 @@ exports.getCustomersList =(userId)=>{
                                 reject({code:1,msg:"Could not retrieve the list of customers",error:e});
                             }
                             else{
-                                resolve({code:0,msg:"Successful",data:r});
+                                let customers = r;
+                                this.getAllUserFiles(userId)
+                                .then(result=>{
+                                    var files = result.data;
+                                    let newCusomerList = customers.map(c=>{
+                                        let nCust = c;
+                                        nCust.files = files.filter(f=>f.refer_id == c.id);
+                                        return nCust;
+                                    });
+                                    resolve({code:0,msg:"Successful",data:newCusomerList});
+                                })
+                                .catch(e=>{
+                                    resolve({code:0,msg:"Successful",data:customers});
+                                })
+                                
                             }
                         });
                     }
@@ -1480,7 +1753,7 @@ exports.createConsignment =(data)=>{
                                             //record successfully inserted
                                             if(instructions_file != null && instructions_file != undefined){
                                                 //save file if provided
-                                                saveFile(instructions_file,{user:data.user,target:'consignments_tb',refer_id:r.insertId,name:"shipping instructions"})
+                                                saveFile(instructions_file,{user:data.user,target:'consignments_tb',refer_id:r.insertId,name:"shipping instructions",isUpdate:false})
                                                 .then(fileId=>{
                                                     //consignment updated with file info
                                                     
@@ -1555,7 +1828,7 @@ exports.createConsignment =(data)=>{
                                                     //record successfully inserted
                                                     if(instructions_file != null && instructions_file != undefined){
                                                         //save file if provided
-                                                        saveFile(instructions_file,{user:data.user,target:'consignments_tb',refer_id:r.insertId,name:"shipping instructions"})
+                                                        saveFile(instructions_file,{user:data.user,target:'consignments_tb',refer_id:r.insertId,name:"shipping instructions",isUpdate:false})
                                                         .then(fileId=>{
                                                             
                                                             //consignment updated with file info
@@ -1645,7 +1918,7 @@ exports.getConsignments = (userId)=>{
                                             i.status_text = CONSIGNMENT_STATUS.filter(s=>s.id == i.status)[0].status;
                                             return i;
                                         });
-                                        this.getAllConsignmentFiles(userId)
+                                        this.getAllUserFiles(userId)
                                         .then(result=>{
                                             consginments = r.map(c=>{
                                                 let i = c;
@@ -1749,7 +2022,7 @@ exports.getConsignment = (userId,cid)=>{
                                     i.status_text = CONSIGNMENT_STATUS.filter(s=>s.id == i.id)[0].status;
                                     return i;
                                 });
-                                this.getAllConsignmentFiles(userId)
+                                this.getAllUserFiles(userId)
                                 .then(result=>{
                                     consginments = r.map(c=>{
                                         let i = c;
@@ -1814,10 +2087,11 @@ exports.updateConsignmentFile = (data)=>{
             .then(result=>{
                 if(result.data){
                     var consignment = result.data[0];
-                    var option = {target:data.target,user:data.user,refer_id:data.cid,name:data.name};
+                    var option = {target:data.target,user:data.user,refer_id:data.cid,name:data.name,isUpdate:false};
                     var files = consignment.files.filter(f=>f.refer_id == consignment.id && f.name == data.name);
                     if(files && files.length > 0){
                         option.filename = files[0].filename;
+                        option.isUpdate = true;
                     }
                     saveFile(data.file,option)
                     .then(done=>{
@@ -1897,7 +2171,7 @@ exports.updateConsignment =(data)=>{
                     }
                     else{
                         if(instructions_file != null){
-                            saveFile(instructions_file,{user:userId,target:'consignments_tb',refer_id:consId,name:"shipping instructions"})
+                            saveFile(instructions_file,{user:userId,target:'consignments_tb',refer_id:consId,name:"shipping instructions",isUpdate:true})
                             .then(fileId=>{
                                 // data.instructions_file = fileId; 
                                 var updateSql = "update consignments_tb set ";
@@ -2058,7 +2332,7 @@ exports.updateConsignmentStatus = (userId,status,cid)=>{
    
 }
 //get consignment files
-exports.getConsignmentFiles = (refId,userId)=>{
+exports.getUserFiles = (refId,userId)=>{
     return new Promise((resolve,reject)=>{
         this.getUser(userId).then(result=>{
             if(result.data){
@@ -2068,13 +2342,13 @@ exports.getConsignmentFiles = (refId,userId)=>{
                 })
             }
         }).catch(e=>{
-            console.error(getTimeStamp()+" db.getConsignmentFiles(): ",e);
+            console.error(getTimeStamp()+" db.getUserFiles(): ",e);
             reject({code:1,msg:"You need to login with a valid account",error:e});
         })
     })
 }
 //get all consignment files
-exports.getAllConsignmentFiles = (userId)=>{
+exports.getAllUserFiles = (userId)=>{
     return new Promise((resolve,reject)=>{
         this.getUser(userId).then(result=>{
             if(result.data){
@@ -2084,14 +2358,14 @@ exports.getAllConsignmentFiles = (userId)=>{
                     if(exist){
                         pool.getConnection((e,con)=>{
                             if(e){
-                                console.error(getTimeStamp()+" db.getConsignmentFiles(): ",e);
+                                console.error(getTimeStamp()+" db.getUserFiles(): ",e);
                                 reject({code:1,msg:"Could not get connection to service",error:e});
                             }
                             else{
                                 con.query("select * from user_files",(e,r)=>{
                                     con.release();
                                     if(e){
-                                        console.error(getTimeStamp()+" db.getConsignmentFiles(): ",e);
+                                        console.error(getTimeStamp()+" db.getUserFiles(): ",e);
                                         reject({code:1,msg:"Could not get consignment files",error:e});
                                     }
                                     else{
@@ -2107,16 +2381,16 @@ exports.getAllConsignmentFiles = (userId)=>{
                     
                 })
                 .catch(e=>{
-                    console.error(getTimeStamp()+" db.getConsignmentFiles(): ",e);
+                    console.error(getTimeStamp()+" db.getUserFiles(): ",e);
                     reject({code:1,msg:"Could not verify user files",error:e});
                 })
             }
             else{
-                console.error(getTimeStamp()+" db.getConsignmentFiles(): ");
+                console.error(getTimeStamp()+" db.getUserFiles(): ");
                 reject({code:1,msg:"You need to login with a valid account"});
             }
         }).catch(e=>{
-            console.error(getTimeStamp()+" db.getConsignmentFiles(): ",e);
+            console.error(getTimeStamp()+" db.getUserFiles(): ",e);
             reject({code:1,msg:"You need to login with a valid account",error:e});
         })
     })
@@ -2160,7 +2434,7 @@ exports.createBooking=(data)=>{
                                         con.release();
                                         if(bookingConfirmation != null){
                                             saveFile(bookingConfirmation,{user:userId,
-                                                target:"ship_bookings",name:"ship booking",refer_id:data.cid})
+                                                target:"ship_bookings",name:"ship booking",refer_id:data.cid,isUpdate:false})
                                             .then(done=>{
                                                 if(done){
                                                     this.updateConsignmentStatus(userId,3,data.cid)
@@ -2230,8 +2504,7 @@ exports.createBooking=(data)=>{
                                             }
                                             else{
                                                 if(bookingConfirmation != null){
-                                                    saveFile(bookingConfirmation,{user:userId,
-                                                        target:"ship_bookings",name:"booking confirmation",refer_id:data.cid})
+                                                    saveFile(bookingConfirmation,{user:userId,target:"ship_bookings",name:"booking confirmation",refer_id:data.cid,isUpdate:false})
                                                     .then(fileId=>{
                                                         this.getBookings(userId)
                                                         .then(result=>{
@@ -2311,7 +2584,7 @@ exports.updateBooking=(data)=>{
                 values.push(Date.now());
                 values.push(bid);
                 if(file != null && file != undefined){
-                    saveFile(file,{user:userId,refer_id:data.cid,name:"ship booking",target:"ship_bookings"})
+                    saveFile(file,{user:userId,refer_id:data.cid,name:"ship booking",target:"ship_bookings",isUpdate:true})
                     .then(fileId=>{
                         console.log("saved file: ",fileId);
                         pool.getConnection((e,con)=>{
@@ -2598,7 +2871,7 @@ exports.updateContainer = (data)=>{
                             }
                             else{
                                 if(file != null && file != undefined){
-                                    saveFile(file,{user:userId,target:"container_bookings",refer_id:data.cid,name:"container booking"})
+                                    saveFile(file,{user:userId,target:"container_bookings",refer_id:data.cid,name:"container booking",isUpdate:true})
                                     .then(done=>{
                                         if(done){
                                             this.updateConsignmentStatus(userId,4,data.cid)
@@ -2850,7 +3123,7 @@ exports.updateQuotation = (userId,data)=>{
             var sql = "update quotations set ";
             
             keys.forEach(key=>{
-                sql += key+"=?, "
+                sql += key+"=?, ";
             })
             sql += "date_modified=? where id=?";
             values.push(Date.now());
