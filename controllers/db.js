@@ -623,7 +623,7 @@ exports.createCustomer=(data)=>{
                                                     console.error("db.createCustomer(): ",e);
                                                     reject({code:1,msg:"Could not create customer",error:e});
                                                 }
-                                            })
+                                            });
                                         }
                                         else{
                                             if(tin_cert != null){
@@ -780,6 +780,16 @@ exports.createCustomer=(data)=>{
                                                     })
                             
                                                 }
+                                                else{
+                                                    this.getCustomersList(data.user)
+                                                        .then(result=>{
+                                                            resolve(result);
+                                                        })
+                                                        .catch(err=>{
+                                                            console.error("db.updateCustomer(): ",err);
+                                                            reject(err);
+                                                        })
+                                                }
                                             }
                                            
                                         }
@@ -935,6 +945,16 @@ exports.updateCustomer = (data)=>{
                                 reject({code:1,msg:"Failed save certificate file"});
                             })
     
+                        }
+                        else{
+                            this.getCustomersList(data.user)
+                                .then(result=>{
+                                    resolve(result);
+                                })
+                                .catch(err=>{
+                                    console.error("db.updateCustomer(): ",err);
+                                    reject(err);
+                                });
                         }
                     }
                 }
@@ -3112,7 +3132,7 @@ exports.createQuotation = (userId,data)=>{
 
 //update quotation
 exports.updateQuotation = (userId,data)=>{
-    var customerId = data.id;
+    var quotationId = data.id;
     delete data.id;
     return new Promise((resolve,reject)=>{
         this.getUser(userId).then(result=>{
@@ -3127,7 +3147,7 @@ exports.updateQuotation = (userId,data)=>{
             })
             sql += "date_modified=? where id=?";
             values.push(Date.now());
-            values.push(customerId);
+            values.push(quotationId);
             pool.getConnection((e,con)=>{
                 if(e){
                     console.error(getTimeStamp()+" db.upateQuotation(): ",e);
@@ -3136,6 +3156,8 @@ exports.updateQuotation = (userId,data)=>{
                 else{
                     con.beginTransaction((e)=>{
                         if(e){
+                            console.error(getTimeStamp()+" db.updateQuotation(): ",e);
+                            reject({code:1,msg:"Could not begin transaction",error:e});
                             con.destroy();
                         }
                         else{
@@ -3143,7 +3165,7 @@ exports.updateQuotation = (userId,data)=>{
                                 if(e){
                                     console.error(getTimeStamp()+" db.updateQuotation(): ",e);
                                     reject({code:1,msg:"Could not update record",error:e});
-                                    con.destroy()
+                                    con.destroy();
                                 }
                                 else{
                                     if(con.commit()){

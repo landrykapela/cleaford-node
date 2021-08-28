@@ -172,7 +172,7 @@ app.put("/customer/:customer_id",authenticateToken,(req,res)=>{
   let customer_id = req.params.customer_id;
   let data = req.body;
   data.id = customer_id;
-  // console.log("d: ",data);
+  console.log("d: ",data);
   db.updateCustomer(data)
     .then(result=>{
       res.status(201).json(result);
