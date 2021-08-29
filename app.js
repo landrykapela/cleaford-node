@@ -660,7 +660,49 @@ app.get("/quotations/:userId",authenticateToken,(req,res)=>{
     res.status(200).json(er);
   })
 })
-  //getpaymetn terms
+
+//get cost items
+app.get("/cost_items/:userId",authenticateToken,(req,res)=>{
+  db.getCostItems(req.params.userId)
+  .then(result=>{
+    res.status(200).json(result);
+  })
+  .catch(e=>{
+    res.status(200).json(e);
+  })
+})
+
+//add cost iem
+app.post("/cost_items/:userId",authenticateToken,(req,res)=>{
+  var data = req.body;
+  console.log("t: ",data);
+  db.createCostItem(req.params.userId,data)
+  .then(result=>{
+    res.status(201).json(result);
+  })
+  .catch(er=>{res.status(200).json(er)});
+})
+
+//update cost iem
+app.put("/cost_items/:userId/:itemId",authenticateToken,(req,res)=>{
+  var data = req.body;
+  db.updateCostItem(req.params.userId,req.params.itemId,data)
+  .then(result=>{
+    res.status(201).json(result);
+  })
+  .catch(er=>{res.status(200).json(er)});
+})
+
+//delete cost item
+app.delete("/cost_items/:userId/:itemId",authenticateToken,(req,res)=>{  
+  db.deleteCostItem(req.params.userId,req.params.itemId)
+  .then(result=>{
+    res.status(200).json(result);
+  })
+  .catch(er=>{res.status(200).json(er)});
+})
+
+//getpaymetn terms
   app.get("/payments",authenticateToken,(req,res)=>{
     db.getPaymentTerms().then(result=>{
       res.status(200).json(result);

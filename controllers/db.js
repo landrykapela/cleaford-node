@@ -3246,3 +3246,222 @@ exports.getQuotations = (userId)=>{
         })
     })
 }
+
+
+//get cost items
+exports.getCostItems = (userId)=>{
+    return new Promise((resolve,reject)=>{
+        this.getUser(userId).then(result=>{
+            var pool = getClientPool(result.data);
+            
+            doesTableExist("cost_items",userId).then(exist=>{
+                pool.getConnection((e,con)=>{
+                    if(e){
+                        console.error(getTimeStamp()+" db.getCostItems(): ",e);
+                        reject({code:1,msg:"Could not get connection to service",error:e});
+                    }
+                    else{
+                        if(exist){
+                            con.query("select * from cost_items ",(e,r)=>{
+                                if(e){
+                                    console.error(getTimeStamp()+" db.getCostItems(): ",e);
+                                    reject({code:1,msg:"Could not retrieve cost item data",error:e});
+                                }
+                                else{
+                                    resolve({code:0,msg:"successful",data:r});
+                                }
+                                con.release();
+                                con.destroy();
+                            })
+                        }
+                        else{
+                            resolve({code:0,msg:"No data",data:[]});
+                        }
+                    }
+                })
+            })
+            .catch(e=>{
+                reject({code:1,msg:"Could not verify table table",error:e});
+            })
+                    
+          
+        })
+        .catch(e=>{
+            console.error(getTimeStamp()+" db.getCostItems(): ",e);
+            reject(e)
+        })
+    })
+}
+
+//create cost items
+exports.createCostItem = (userId,data)=>{
+    return new Promise((resolve,reject)=>{
+        this.getUser(userId)
+        .then(result=>{
+            let user = result.data;
+            var clientPool = getClientPool(user);
+            doesTableExist("cost_items",userId)
+            .then(exist=>{
+                clientPool.getConnection((er,con)=>{
+                    if(er){
+                        console.error("createCostItem(): ",er);
+                        reject({code:1,msg:"Could not get a connection to service",error:er});
+                    }
+                    else{
+                        if(exist){
+                            sql = "insert into cost_items (name,description,price,at_cost,date_created) values (?)";
+                            let values = [data.name,data.description,data.price,data.at_cost,Date.now()];
+                            con.query(sql,[values],(e,r)=>{
+                                if(e){
+                                    console.error("db.createClientRole(): ",e);
+                                    con.release();
+                                    reject({code:1,msg:"Could not a add role",error:e});
+                                }
+                                else{
+                                    con.release();
+                                    this.getCostItems(userId)
+                                    .then(result=>{
+                                        resolve(result);
+                                    })
+                                    .catch(err=>{
+                                        reject(err)
+                                    })
+                                }
+                            })
+                        }
+                        else{
+                            let sql = "create table if not exists cost_items (id int(3) auto_increment primary key,name varchar(50) not null,description varchar(255),price varchar(15) default '0',at_cost int(1) default 0,date_created bigint)";
+                            con.query(sql,(e,r)=>{
+                                if(e){
+                                    console.error("db.createCostItem(): ",e);
+                                    con.release();
+                                    reject({code:1,msg:"Could not create a cost items",error:e});
+                                }
+                                else{
+                                    sql = "insert into cost_items (name,description,price,at_cost,date_created) values (?)";
+                                    let values = [data.name,data.description,data.price,data.at_cost,Date.now()];
+                                    con.query(sql,[values],(e,r)=>{
+                                        if(e){
+                                            console.error("db.createClientRole(): ",e);
+                                            con.release();
+                                            reject({code:1,msg:"Could not a add role",error:e});
+                                        }
+                                        else{
+                                            con.release();
+                                            this.getCostItems(userId)
+                                            .then(result=>{
+                                                resolve(result);
+                                            })
+                                            .catch(err=>{
+                                                reject(err)
+                                            })
+                                        }
+                                    })
+                                }
+                            });
+                        }
+                    }
+                })
+            
+            })
+            .catch(er=>{
+                console.error("db.createCostItem(): ",er);
+                reject({code:1,msg:"Could check table for cost items",error:er});
+            });
+        })
+        .catch(er=>{
+            console.error("db.createCostItem(): ",er);
+            reject({code:1,msg:"Could not get user",error:er});
+        })
+    })
+}
+//update cost items
+exports.updateCostItem = (userId,itemId,data)=>{
+    return new Promise((resolve,reject)=>{
+        this.getUser(userId)
+        .then(result=>{
+            let user = result.data;
+            var clientPool = getClientPool(user);
+            clientPool.getConnection((er,con)=>{
+                if(er){
+                    console.error("updateCostItem(): ",er);
+                    reject({code:1,msg:"Could not get a connection to service",error:er});
+                }
+                else{
+                    sql = "update cost_items set ";
+                    var keys = Object.keys(data);
+                    var values = Object.values(data);
+                    keys.forEach((key,i)=>{
+                        sql += key+"=?";
+                        if(i < keys.length -1) sql += ",";
+                    });
+                    sql += " where id=?";
+                    values.push(itemId);
+                    con.query(sql,values,(e,r)=>{
+                        if(e){
+                            console.error("db.updateClientRole(): ",e);
+                            con.release();
+                            reject({code:1,msg:"Could not a update cost item",error:e});
+                        }
+                        else{
+                            con.release();
+                            this.getCostItems(userId)
+                            .then(result=>{
+                                resolve(result);
+                            })
+                            .catch(err=>{
+                                reject(err)
+                            })
+                        }
+                    })
+                }
+            })
+        })
+        .catch(er=>{
+            console.error("db.updateCostItem(): ",er);
+            reject({code:1,msg:"Could not get user",error:er});
+        })
+    })
+}
+
+//delete cost item
+exports.deleteCostItem = (userId,itemId)=>{
+    return new Promise((resolve,reject)=>{
+        this.getUser(userId)
+        .then(result=>{
+            let user = result.data;
+            var clientPool = getClientPool(user);
+            clientPool.getConnection((er,con)=>{
+                if(er){
+                    console.error("deleteCostItem(): ",er);
+                    reject({code:1,msg:"Could not get a connection to service",error:er});
+                }
+                else{
+                    sql = "delete from cost_items where id=?";
+                    
+                    con.query(sql,[itemId],(e,r)=>{
+                        if(e){
+                            console.error("db.deleteClientRole(): ",e);
+                            con.release();
+                            reject({code:1,msg:"Could not a delete cost item",error:e});
+                        }
+                        else{
+                            con.release();
+                            this.getCostItems(userId)
+                            .then(result=>{
+                                resolve(result);
+                            })
+                            .catch(err=>{
+                                reject(err)
+                            })
+                        }
+                    })
+                }
+            })
+        })
+        .catch(er=>{
+            console.error("db.deleteCostItem(): ",er);
+            reject({code:1,msg:"Could not get user",error:er});
+        })
+    })
+}
