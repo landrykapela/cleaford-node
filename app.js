@@ -661,6 +661,42 @@ app.get("/quotations/:userId",authenticateToken,(req,res)=>{
   })
 })
 
+
+//invoices
+app.post("/invoices/:userId",authenticateToken,(req,res)=>{
+  var data = req.body;
+  db.createInvoice(req.params.userId,data)
+  .then(result=>{
+    res.status(201).json(result);
+  })
+  .catch(e=>{
+    res.status(200).json(e);
+  })
+  
+})
+
+//update quotations
+app.put("/invoices/:userId",authenticateToken,(req,res)=>{
+  var data = req.body;
+  db.updateInvoice(req.params.userId,data)
+  .then(result=>{
+    res.status(201).json(result);
+  })
+  .catch(e=>{
+    res.status(200).json(e);
+  })
+  
+})
+//get quotation
+app.get("/invoices/:userId",authenticateToken,(req,res)=>{
+  db.getInvoices(req.params.userId).then(result=>{
+    res.status(200).json(result);
+  }).catch(er=>{
+    res.status(200).json(er);
+  })
+})
+
+
 //get cost items
 app.get("/cost_items/:userId",authenticateToken,(req,res)=>{
   db.getCostItems(req.params.userId)

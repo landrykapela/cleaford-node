@@ -3247,6 +3247,269 @@ exports.getQuotations = (userId)=>{
     })
 }
 
+//create invoice
+exports.createInvoice = (userId,data)=>{
+    return new Promise((resolve,reject)=>{
+        this.getUser(userId).then(result=>{
+            var pool = getClientPool(result.data);
+            doesTableExist("invoices",userId)
+                .then(exist=>{
+                    var keys = Object.keys(data);
+                    var values = Object.values(data);
+                    if(exist){
+                        var sql = "insert into invoices (";
+                        
+                        keys.forEach(key=>{
+                            sql += key+", "
+                        })
+                        sql += "date_created,date_modified) values(?) ";
+                        values.push(Date.now());
+                        values.push(Date.now());
+                        pool.getConnection((e,con)=>{
+                            if(e){
+                                console.error(getTimeStamp()+" db.createInvoice(): ",e);
+                                reject({code:1,msg:"Could not get connection to service",error:e});
+                            }
+                            else{
+                                con.beginTransaction((e)=>{
+                                    if(e){
+                                        con.destroy();
+                                    }
+                                    else{
+                                        con.query(sql,[values],(e,r)=>{
+                                            if(e){
+                                                console.error(getTimeStamp()+" db.createInvoice(): ",e);
+                                                reject({code:1,msg:"Could not create record",error:e});
+                                                con.destroy()
+                                            }
+                                            else{
+                                                if(con.commit()){
+                                                    con.release();
+                                                    this.getInvoices(userId)
+                                                    .then(rs=>{
+                                                        resolve({code:0,msg:"successful",data:rs.data});
+                                                    })
+                                                    .catch(e=>{
+                                                        reject({code:1,msg:"Could not retrieve updated list of invoices",error:e});
+                                                    })
+                                                }
+                                                else{
+                                                    con.rollback((e)=>{
+                                                        con.destroy();
+                                                        reject({code:1,msg:"Could not create record",error:e})
+                                                    })
+                                                    
+                                                }
+                                                
+                                            }
+                                        })
+                                    }
+                                })
+                            }
+                        })
+                        
+                        
+                    }
+                    else{
+                        var createSql = "create table if not exists invoices (id int(10) auto_increment primary key, quotation int(10),";
+                        keys.forEach(key=>{
+                            if(key.toLowerCase() == "quantity") createSql += key+ " int(5), ";
+                            else if(key.toLowerCase() == "customer_id") createSql += key+" int(10), ";
+                            else createSql += key +" varchar(100), ";
+                        });
+                        createSql += "date_created bigint,date_modified bigint)";
+                        pool.getConnection((e,con)=>{
+                            if(e){
+                                console.error(getTimeStamp()+" db.createInvoicee(): ",e);
+                                reject({code:1,msg:"Could not get connection to service",error:e});
+                            }
+                            else{
+                                con.beginTransaction((e)=>{
+                                    if(e){
+                                        con.destroy();
+                                    }
+                                    else{
+                                        con.query(createSql,(e,r)=>{
+                                            if(e){
+                                                console.error(getTimeStamp()+" db.createInvoice(): ",e);
+                                                reject({code:1,msg:"Could not create invoices table",error:e});
+                                            }
+                                            else{
+                                                var sql = "insert into invoices (";
+                                        
+                                                keys.forEach(key=>{
+                                                sql += key+", "
+                                                })
+                                                sql += "date_created,date_modified) values(?) ";
+                                                values.push(Date.now());
+                                                values.push(Date.now());
+                                                
+                                                con.query(sql,[values],(e,r)=>{
+                                                    if(e){
+                                                        console.error(getTimeStamp()+" db.createInvoice(): ",e);
+                                                        reject({code:1,msg:"Could not create record",error:e});
+                                                        con.destroy()
+                                                    }
+                                                    else{
+                                                        if(con.commit()){
+                                                            con.release();
+                                                            this.getInvoices(userId)
+                                                            .then(rs=>{
+                                                                resolve({code:0,msg:"successful",data:rs.data});
+                                                            })
+                                                            .catch(e=>{
+                                                                resolve(result);
+                                                            })
+                                                        }
+                                                        else{
+                                                            con.rollback((e)=>{
+                                                                con.destroy();
+                                                                reject({code:1,msg:"Could not create record",error:e})
+                                                            })
+                                                            
+                                                        }
+                                                        
+                                                    }
+                                                })
+                                                
+                                            }
+                                        })
+                                    }
+                                });
+                            }
+                        })
+                    }
+                })
+                .catch(e=>{
+                    console.error(getTimeStamp()+" db.createInvoice(): ",e);
+                    reject({code:1,msg:"Could not verify table",error:e});
+                })
+        })
+        .catch(e=>{
+            console.error(getTimeStamp()+" db.createInvoice(): ",e);
+            reject({code:1,msg:"You must be logged in to access this resource",error:e});
+        })
+    })
+   
+}
+
+//update quotation
+exports.updateInvoice = (userId,data)=>{
+    var invoiceId = data.id;
+    delete data.id;
+    return new Promise((resolve,reject)=>{
+        this.getUser(userId).then(result=>{
+            var pool = getClientPool(result.data);
+            var keys = Object.keys(data);
+            var values = Object.values(data);
+            
+            var sql = "update invoices set ";
+            
+            keys.forEach(key=>{
+                sql += key+"=?, ";
+            })
+            sql += "date_modified=? where id=?";
+            values.push(Date.now());
+            values.push(invoiceId);
+            pool.getConnection((e,con)=>{
+                if(e){
+                    console.error(getTimeStamp()+" db.updateInvoice(): ",e);
+                    reject({code:1,msg:"Could not get connection to service",error:e});
+                }
+                else{
+                    con.beginTransaction((e)=>{
+                        if(e){
+                            console.error(getTimeStamp()+" db.updateInvoice(): ",e);
+                            reject({code:1,msg:"Could not begin transaction",error:e});
+                            con.destroy();
+                        }
+                        else{
+                            con.query(sql,values,(e,r)=>{
+                                if(e){
+                                    console.error(getTimeStamp()+" db.updateInvoice(): ",e);
+                                    reject({code:1,msg:"Could not update record",error:e});
+                                    con.destroy();
+                                }
+                                else{
+                                    if(con.commit()){
+                                        con.release();
+                                        this.getInvoices(userId)
+                                        .then(rs=>{
+                                            resolve({code:0,msg:"successful",data:rs.data});
+                                        })
+                                        .catch(e=>{
+                                            reject({code:1,msg:"Could not retrieve updated list of consignments",error:e});
+                                        })
+                                    }
+                                    else{
+                                        con.rollback((e)=>{
+                                            con.destroy();
+                                            reject({code:1,msg:"Could not create record",error:e})
+                                        })
+                                        
+                                    }
+                                    
+                                }
+                            })
+                        }
+                    })
+                }
+            })
+             
+        })
+        .catch(e=>{
+            console.error(getTimeStamp()+" db.createInvoicee(): ",e);
+            reject({code:1,msg:"You must be logged in to access this resource",error:e});
+        })
+    })
+   
+}
+
+//get invoice
+exports.getInvoices = (userId)=>{
+    return new Promise((resolve,reject)=>{
+        this.getUser(userId).then(result=>{
+            var pool = getClientPool(result.data);
+            
+            doesTableExist("invoices",userId).then(exist=>{
+                pool.getConnection((e,con)=>{
+                    if(e){
+                        console.error(getTimeStamp()+" db.getQuotations(): ",e);
+                        reject({code:1,msg:"Could not get connection to service",error:e});
+                    }
+                    else{
+                        if(exist){
+                            con.query("select * from invoices ",(e,r)=>{
+                                if(e){
+                                    console.error(getTimeStamp()+" db.getInovoices(): ",e);
+                                    reject({code:1,msg:"Could not retrieve Inovoice data",error:e});
+                                }
+                                else{
+                                    resolve({code:0,msg:"successful",data:r});
+                                }
+                                con.release();
+                                con.destroy();
+                            })
+                        }
+                        else{
+                            resolve({code:0,msg:"successful",data:[]});
+                        }
+                    }
+                })
+            })
+            .catch(e=>{
+                reject({code:1,msg:"Could not verify invoice table",error:e});
+            })
+                    
+          
+        })
+        .catch(e=>{
+            console.error(getTimeStamp()+" db.getInvoices(): ",e);
+            reject(e)
+        })
+    })
+}
+
 
 //get cost items
 exports.getCostItems = (userId)=>{
