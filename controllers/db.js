@@ -59,18 +59,24 @@ const doesTableExist = (tableName,userId)=>{
                     }
                     else{
                         con.query("show tables",(e,r)=>{
-                            con.release();
-                            var key = "Tables_in_"+result.data.db;
-                            if(r && r.length > 0){
-                                var table = r.filter(i=>i[key].toLowerCase() == tableName.toLowerCase());
-                                if(table.length > 0) {
-                                    resolve(true);
-                                }
-                                else{
-                                    resolve(false);
-                                }
+                            if(e){
+                                console.error(getTimeStamp()+": doesTableExist(): ",e);
                             }
-                            else resolve(false);
+                            else{
+                                con.release();
+                                var key = "Tables_in_"+result.data.db;
+                                if(r && r.length > 0){
+                                    var table = r.filter(i=>i[key].toLowerCase() == tableName.toLowerCase());
+                                    if(table.length > 0) {
+                                        resolve(true);
+                                    }
+                                    else{
+                                        resolve(false);
+                                    }
+                                }
+                                else resolve(false);
+                            }
+                            
                         })
                     }
                 })
