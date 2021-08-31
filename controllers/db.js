@@ -59,11 +59,12 @@ const doesTableExist = (tableName,userId)=>{
                     }
                     else{
                         con.query("show tables",(e,r)=>{
+                            con.release();
                             if(e){
                                 console.error(getTimeStamp()+": doesTableExist(): ",e);
+                                reject(false);
                             }
                             else{
-                                con.release();
                                 var key = "Tables_in_"+result.data.db;
                                 if(r && r.length > 0){
                                     var table = r.filter(i=>i[key].toLowerCase() == tableName.toLowerCase());
@@ -76,8 +77,9 @@ const doesTableExist = (tableName,userId)=>{
                                 }
                                 else resolve(false);
                             }
-                            
-                        })
+                            con.destroy();
+                        });
+                        
                     }
                 })
                
@@ -2397,6 +2399,7 @@ exports.getAllUserFiles = (userId)=>{
                                     else{
                                         resolve({code:0,msg:"Successful",data:r});
                                     }
+                                    con.destroy();
                                 })
                             }
                         })
@@ -2710,12 +2713,12 @@ exports.getBookings = (userId)=>{
                         doesTableExist("ship_bookings",userId).then(exist=>{
                             if(exist){
                                 con.query(sql,(e,r)=>{
+                                    con.release();
                                     if(e){
                                         console.error(getTimeStamp()+" db.createBooking(): ",e);
                                         reject({code:1,msg:"Could not get bookings",error:e});
                                     }
                                     else{
-                                        con.release();
                                         resolve({code:0,msg:"successful",data:r});
                                     }
                                 })
@@ -2726,6 +2729,7 @@ exports.getBookings = (userId)=>{
                             }
                         })
                         .catch(e=>{
+                            con.release();
                             console.error(getTimeStamp()+" db.getBookings(): ",e);
                             reject({code:1,msg:"Could not verify ship bookings table",error:e});
                         })
@@ -3730,6 +3734,136 @@ exports.deleteCostItem = (userId,itemId)=>{
         })
         .catch(er=>{
             console.error("db.deleteCostItem(): ",er);
+            reject({code:1,msg:"Could not get user",error:er});
+        })
+    })
+}
+
+//petty cash
+exports.recordPettyCash = (userId,data)=>{
+    return new Promise((resolve,reject)=>{
+        this.getUser(userId)
+        .then(result=>{
+            let user = result.data;
+            var clientPool = getClientPool(user);
+            doesTableExist("petty_cash",userId)
+            .then(exist=>{
+                clientPool.getConnection((er,con)=>{
+                    if(er){
+                        console.error("recordPettyCash(): ",er);
+                        reject({code:1,msg:"Could not get a connection to service",error:er});
+                    }
+                    else{
+                        if(exist){
+                            sql = "insert into petty_cash (date_created,voucher,description,name,amount,opening_balance,balance,type) values (?)";
+                            let values = [data.date_created,data.voucher,data.description,data.name,data.amount,data.opening_blance,data.balance,data.type];
+                            con.query(sql,[values],(e,r)=>{
+                                if(e){
+                                    console.error("db.recordPettyCash(): ",e);
+                                    con.release();
+                                    reject({code:1,msg:"Could not a record transaction",error:e});
+                                }
+                                else{
+                                    con.release();
+                                    this.getPettyCash(userId)
+                                    .then(result=>{
+                                        resolve(result);
+                                    })
+                                    .catch(err=>{
+                                        reject(err)
+                                    })
+                                }
+                            })
+                        }
+                        else{
+                            let sql = "create table if not exists petty_cash (id int(10) auto_increment primary key,date_created bigint,voucher int(10),description varchar(255),name varchar(50),amount varchar(15),opening_balance varchar(15),balance varchar(15),type int(1))";
+                            con.query(sql,(e,r)=>{
+                                if(e){
+                                    console.error("db.recordPettyCash: ",e);
+                                    con.release();
+                                    reject({code:1,msg:"Could not create a petty cash table",error:e});
+                                }
+                                else{
+                                    sql = "insert into petty_cash (date_created,voucher,description,name,amount,opening_balance,balance,type) values (?)";
+                                    let values = [data.date_created,data.voucher,data.description,data.name,data.amount,data.opening_blance,data.balance,data.type];
+                                    con.query(sql,[values],(e,r)=>{
+                                        if(e){
+                                            console.error("db.recordPettyCash(): ",e);
+                                            con.release();
+                                            reject({code:1,msg:"Could not a record transaction",error:e});
+                                        }
+                                        else{
+                                            con.release();
+                                            this.getPettyCash(userId)
+                                            .then(result=>{
+                                                resolve(result);
+                                            })
+                                            .catch(err=>{
+                                                reject(err)
+                                            })
+                                        }
+                                    })
+                                }
+                            });
+                        }
+                    }
+                })
+            
+            })
+            .catch(er=>{
+                console.error("db.recordPettyCash(): ",er);
+                reject({code:1,msg:"Could check table for petty cash",error:er});
+            });
+        })
+        .catch(er=>{
+            console.error("db.recordPettyCash: ",er);
+            reject({code:1,msg:"Could not get user",error:er});
+        })
+    })
+}
+
+exports.getPettyCash = (userId)=>{
+    return new Promise((resolve,reject)=>{
+        this.getUser(userId)
+        .then(result=>{
+            let user = result.data;
+            var clientPool = getClientPool(user);
+            doesTableExist("petty_cash",userId)
+            .then(exist=>{
+                clientPool.getConnection((er,con)=>{
+                    if(er){
+                        console.error("db.getPettyCash(): ",er);
+                        reject({code:1,msg:"Could not get a connection to service",error:er});
+                    }
+                    else{
+                        if(exist){
+                            sql = "select * from petty_cash ";
+                            con.query(sql,(e,r)=>{
+                                if(e){
+                                    console.error("db.getPettyCash(): ",e);
+                                    con.release();
+                                    reject({code:1,msg:"Could not get transaction",error:e});
+                                }
+                                else{
+                                    con.release();
+                                    resolve({code:0,msg:"Successful",data:r});
+                                }
+                            })
+                        }
+                        else{
+                            resolve({code:0,msg:"Successful",data:[]})
+                        }
+                    }
+                })
+            
+            })
+            .catch(er=>{
+                console.error("db.getPettyCash(): ",er);
+                reject({code:1,msg:"Could check table for petty cash",error:er});
+            });
+        })
+        .catch(er=>{
+            console.error("db.recordPettyCash: ",er);
             reject({code:1,msg:"Could not get user",error:er});
         })
     })

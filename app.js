@@ -738,6 +738,29 @@ app.delete("/cost_items/:userId/:itemId",authenticateToken,(req,res)=>{
   .catch(er=>{res.status(200).json(er)});
 })
 
+//petty cash
+app.post("/petty_cash/:userId",authenticateToken,(req,res)=>{
+  var data = req.body;
+  db.recordPettyCash(req.params.userId,data)
+  .then(result=>{
+    res.status(201).json(result);
+  })
+  .catch(e=>{
+    res.status(200).json(e);
+  })
+})
+
+app.get("/petty_cash/:userId",authenticateToken,(req,res)=>{
+ 
+  db.getPettyCash(req.params.userId)
+  .then(result=>{
+    res.status(200).json(result);
+  })
+  .catch(e=>{
+    res.status(200).json(e);
+  })
+})
+
 //getpaymetn terms
   app.get("/payments",authenticateToken,(req,res)=>{
     db.getPaymentTerms().then(result=>{
