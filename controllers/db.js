@@ -3755,8 +3755,8 @@ exports.recordPettyCash = (userId,data)=>{
                     }
                     else{
                         if(exist){
-                            sql = "insert into petty_cash (date_created,voucher,description,name,amount,opening_balance,balance,type) values (?)";
-                            let values = [data.date_created,data.voucher,data.description,data.name,data.amount,data.opening_blance,data.balance,data.type];
+                            sql = "insert into petty_cash (date_created,voucher,description,name,amount,balance,type) values (?)";
+                            let values = [data.date_created,data.voucher,data.description,data.name,data.amount,data.balance,data.type];
                             con.query(sql,[values],(e,r)=>{
                                 if(e){
                                     console.error("db.recordPettyCash(): ",e);
@@ -3784,8 +3784,8 @@ exports.recordPettyCash = (userId,data)=>{
                                     reject({code:1,msg:"Could not create a petty cash table",error:e});
                                 }
                                 else{
-                                    sql = "insert into petty_cash (date_created,voucher,description,name,amount,opening_balance,balance,type) values (?)";
-                                    let values = [data.date_created,data.voucher,data.description,data.name,data.amount,data.opening_blance,data.balance,data.type];
+                                    sql = "insert into petty_cash (date_created,voucher,description,name,amount,balance,type) values (?)";
+                                    let values = [data.date_created,data.voucher,data.description,data.name,data.amount,data.balance,data.type];
                                     con.query(sql,[values],(e,r)=>{
                                         if(e){
                                             console.error("db.recordPettyCash(): ",e);
@@ -3837,7 +3837,7 @@ exports.getPettyCash = (userId)=>{
                     }
                     else{
                         if(exist){
-                            sql = "select * from petty_cash ";
+                            sql = "select * from petty_cash order by date_created asc";
                             con.query(sql,(e,r)=>{
                                 if(e){
                                     console.error("db.getPettyCash(): ",e);
