@@ -1972,13 +1972,36 @@ exports.getConsignments = (userId)=>{
                                                         let cs = c;
                                                         cs.container_details = result.data.filter(rs=>rs.cid == c.id)
                                                         return cs;
-                                                    })
+                                                    });
+                                                    
                                                 })
                                                 .catch(e=>{
                                                     console.error(getTimeStamp()+" db.getConsignments(): ",e);
                                                 })
                                                 .finally(()=>{
-                                                    resolve({code:0,"msg":"successful",data:newCons});
+                                                    let consWithInv = newCons;
+                                                    this.getInvoices(userId).then(result=>{
+                                                        consWithInv = newCons.map(c=>{
+                                                            let cs = c;
+                                                            cs.invoices = result.data.filter(rs=>rs.consignment == c.id);
+                                                            return cs;
+                                                        })
+                                                    }).catch(e=>{
+                                                        console.error(getTimeStamp()+" db.getConsignments(): ",e);
+                                                    }).finally(()=>{
+                                                        let consWithPetty = consWithInv;
+                                                    this.getPettyCash(userId).then(result=>{
+                                                        consWithInv = newCons.map(c=>{
+                                                            let cs = c;
+                                                            cs.expenses = result.data.filter(rs=>rs.consignment == c.id);
+                                                            return cs;
+                                                        })
+                                                    }).catch(e=>{
+                                                        console.error(getTimeStamp()+" db.getConsignments(): ",e);
+                                                    }).finally(()=>{
+                                                        resolve({code:0,msg:"Successful",data:consWithPetty})
+                                                    })
+                                                    })
                                                 })
                                             })
                                         }).catch(e=>{
@@ -2082,14 +2105,32 @@ exports.getConsignment = (userId,cid)=>{
                                             console.error(getTimeStamp()+" db.getConsignments(): ",e);
                                         })
                                         .finally(()=>{
-                                            resolve({code:0,"msg":"successful",data:newCons});
+                                            let consWithInv = newCons;
+                                                this.getInvoices(userId).then(result=>{
+                                                    consWithInv = newCons.map(c=>{
+                                                        let cs = c;
+                                                        cs.invoices = result.data.filter(rs=>rs.consignment == c.id);
+                                                        return cs;
+                                                    })
+                                                }).catch(e=>{
+                                                    console.error(getTimeStamp()+" db.getConsignments(): ",e);
+                                                }).finally(()=>{
+                                                    let consWithPetty = consWithInv;
+                                                    this.getPettyCash(userId).then(result=>{
+                                                    consWithInv = newCons.map(c=>{
+                                                        let cs = c;
+                                                        cs.expenses = result.data.filter(rs=>rs.consignment == c.id);
+                                                        return cs;
+                                                        })
+                                                    }).catch(e=>{
+                                                        console.error(getTimeStamp()+" db.getConsignments(): ",e);
+                                                    }).finally(()=>{
+                                                        resolve({code:0,msg:"Successful",data:consWithPetty})
+                                                    })
+                                                })
                                         })
                                     })
-                                }).catch(e=>{
-                                    console.error(getTimeStamp()+" db.getConsignments(): ",e);
-                                    reject({code:1,msg:"Could not get consignment fiels",error:e});
-                                })
-                               
+                                });
                             }
                         })
                     }
