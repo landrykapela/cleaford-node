@@ -3362,7 +3362,7 @@ exports.createInvoice = (userId,data)=>{
                         
                     }
                     else{
-                        var createSql = "create table if not exists invoices (id int(10) auto_increment primary key, quotation int(10),";
+                        var createSql = "create table if not exists invoices (id int(10) auto_increment primary key, quotation int(10),consignment int(10),";
                         keys.forEach(key=>{
                             if(key.toLowerCase() == "quantity") createSql += key+ " int(5), ";
                             else if(key.toLowerCase() == "customer_id") createSql += key+" int(10), ";
@@ -3796,8 +3796,8 @@ exports.recordPettyCash = (userId,data)=>{
                     }
                     else{
                         if(exist){
-                            sql = "insert into petty_cash (date_created,voucher,description,name,amount,balance,type) values (?)";
-                            let values = [data.date_created,data.voucher,data.description,data.name,data.amount,data.balance,data.type];
+                            sql = "insert into petty_cash (date_created,voucher,description,name,amount,balance,type,consignment) values (?)";
+                            let values = [data.date_created,data.voucher,data.description,data.name,data.amount,data.balance,data.type,data.consignment];
                             con.query(sql,[values],(e,r)=>{
                                 if(e){
                                     console.error("db.recordPettyCash(): ",e);
@@ -3817,7 +3817,7 @@ exports.recordPettyCash = (userId,data)=>{
                             })
                         }
                         else{
-                            let sql = "create table if not exists petty_cash (id int(10) auto_increment primary key,date_created bigint,voucher int(10),description varchar(255),name varchar(50),amount varchar(15),opening_balance varchar(15),balance varchar(15),type int(1))";
+                            let sql = "create table if not exists petty_cash (id int(10) auto_increment primary key,date_created bigint,voucher int(10),description varchar(255),name varchar(50),amount varchar(15),opening_balance varchar(15),balance varchar(15),type int(1),consignment int(10))";
                             con.query(sql,(e,r)=>{
                                 if(e){
                                     console.error("db.recordPettyCash: ",e);
@@ -3825,8 +3825,8 @@ exports.recordPettyCash = (userId,data)=>{
                                     reject({code:1,msg:"Could not create a petty cash table",error:e});
                                 }
                                 else{
-                                    sql = "insert into petty_cash (date_created,voucher,description,name,amount,balance,type) values (?)";
-                                    let values = [data.date_created,data.voucher,data.description,data.name,data.amount,data.balance,data.type];
+                                    sql = "insert into petty_cash (date_created,voucher,description,name,amount,balance,type,consignment) values (?)";
+                                    let values = [data.date_created,data.voucher,data.description,data.name,data.amount,data.balance,data.type,data.consignment];
                                     con.query(sql,[values],(e,r)=>{
                                         if(e){
                                             console.error("db.recordPettyCash(): ",e);
