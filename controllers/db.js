@@ -5,6 +5,17 @@ require("dotenv").config();
 const fs = require('fs');
 
 //consignment status
+const IMPORTS_STATUS = [
+    {id:1,status:"Document Checklist"},
+    {id:2,status:"Consignmnt Data"},
+    {id:3,status:"Pending Tax Assessment"},
+    {id:4,status:"Pending Verification Booking"},
+    {id:5,status:"Pending Verification"},
+    {id:6,status:"Pending TASAD Payment"}, 
+    {id:7,status:"Completed"},
+    {id:8,status:"Closed"}]
+
+//consignment status
 const CONSIGNMENT_STATUS = [
     {id:1,status:"Pending Ship Booking"},
     {id:2,status:"Pending Ship Booking"},
@@ -2070,7 +2081,7 @@ exports.getConsignment = (userId,cid)=>{
                             }
                             else{
                                 let consignments = r.map(i=>{
-                                    i.status_text = CONSIGNMENT_STATUS.filter(s=>s.id == i.id)[0].status;
+                                    i.status_text = CONSIGNMENT_STATUS.filter(s=>s.id == i.status)[0].status;
                                     return i;
                                 });
                                 this.getAllUserFiles(userId)
@@ -2337,58 +2348,106 @@ exports.updateConsignment =(data)=>{
     
 }
 //update consignment status
-exports.updateConsignmentStatus = (userId,status,cid)=>{
+exports.updateConsignmentStatus = (userId,status,cid,type=null)=>{
     return new Promise((resolve,reject)=>{
         this.getUser(userId)
         .then(result=>{
             if(result.data){
                 var pool = getClientPool(result.data);
-                this.getConsignment(userId,cid).then(result=>{
-                    if(result.data){
-                        if(result.data.status >= status){
-                            this.getConsignments(userId)
-                                .then(result=>{
-                                    resolve(result);
+                if(type == null || type=="export"){
+                    this.getConsignment(userId,cid).then(result=>{
+                        if(result.data){
+                            if(result.data.status >= status){
+                                this.getConsignments(userId)
+                                    .then(result=>{
+                                        resolve(result);
+                                    })
+                                    .catch(e=>{
+                                        reject(e);
+                                    })
+                            }
+                            else{
+                                pool.getConnection((e,con)=>{
+                                    if(e){
+                                        console.error(getTimeStamp()+" db.updateConsignmentStatus(): ",e);
+                                        reject({code:1,msg:"Could not get connection to service",error:e});
+                                    }
+                                    else{
+                                        var sql = "update consignments_tb set status=?,date_modified=? where id=?";
+                                        var values = [status,Date.now(),cid];
+                    
+                                        con.query(sql,values,(e,r)=>{
+                                            if(e){
+                                                console.error(getTimeStamp()+" db.updateConsignmentStatus(): ",e);
+                                                reject({code:1,msg:"Could not update consignment",error:e});
+                                            }
+                                            else{
+                                                con.release();
+                                                this.getConsignments(userId)
+                                                .then(result=>{
+                                                    resolve(result);
+                                                })
+                                                .catch(e=>{
+                                                    reject(e);
+                                                })
+                                            }
+                                        })
+                                    }
                                 })
-                                .catch(e=>{
-                                    reject(e);
-                                })
+                            }
                         }
                         else{
-                            pool.getConnection((e,con)=>{
-                                if(e){
-                                    console.error(getTimeStamp()+" db.updateConsignmentStatus(): ",e);
-                                    reject({code:1,msg:"Could not get connection to service",error:e});
-                                }
-                                else{
-                                    var sql = "update consignments_tb set status=?,date_modified=? where id=?";
-                                    var values = [status,Date.now(),cid];
-                
-                                    con.query(sql,values,(e,r)=>{
-                                        if(e){
-                                            console.error(getTimeStamp()+" db.updateConsignmentStatus(): ",e);
-                                            reject({code:1,msg:"Could not update consignment",error:e});
-                                        }
-                                        else{
-                                            con.release();
-                                            this.getConsignments(userId)
-                                            .then(result=>{
-                                                resolve(result);
-                                            })
-                                            .catch(e=>{
-                                                reject(e);
-                                            })
-                                        }
-                                    })
-                                }
-                            })
+                            reject({code:1,msg:"Invalid consignment"});
                         }
-                    }
-                    else{
-                        reject({code:1,msg:"Invalid consignment"});
-                    }
-                })
-               
+                    })
+                }
+                else{
+                    this.getImport(userId,cid).then(result=>{
+                        if(result.data){
+                            if(result.data.status >= status){
+                                this.getImports(userId)
+                                    .then(result=>{
+                                        resolve(result);
+                                    })
+                                    .catch(e=>{
+                                        reject(e);
+                                    })
+                            }
+                            else{
+                                pool.getConnection((e,con)=>{
+                                    if(e){
+                                        console.error(getTimeStamp()+" db.updateConsignmentStatus(): ",e);
+                                        reject({code:1,msg:"Could not get connection to service",error:e});
+                                    }
+                                    else{
+                                        var sql = "update imports set status=?,date_modified=? where id=?";
+                                        var values = [status,Date.now(),cid];
+                    
+                                        con.query(sql,values,(e,r)=>{
+                                            if(e){
+                                                console.error(getTimeStamp()+" db.updateConsignmentStatus(): ",e);
+                                                reject({code:1,msg:"Could not update consignment",error:e});
+                                            }
+                                            else{
+                                                con.release();
+                                                this.getImports(userId)
+                                                .then(result=>{
+                                                    resolve(result);
+                                                })
+                                                .catch(e=>{
+                                                    reject(e);
+                                                })
+                                            }
+                                        })
+                                    }
+                                })
+                            }
+                        }
+                        else{
+                            reject({code:1,msg:"Invalid consignment"});
+                        }
+                    })
+                }
             }
             else{
                 reject({code:1,msg:"Invalid user"});
@@ -3906,6 +3965,352 @@ exports.getPettyCash = (userId)=>{
         .catch(er=>{
             console.error("db.recordPettyCash: ",er);
             reject({code:1,msg:"Could not get user",error:er});
+        })
+    })
+}
+
+//imports
+exports.createImport=(userId,data)=>{
+    console.log("d: ",data);
+    return new Promise((resolve,reject)=>{
+        this.getUser(userId)
+        .then(result=>{
+            let user = result.data;
+            var clientPool = getClientPool(user);
+            doesTableExist("imports",userId)
+            .then(exist=>{
+                if(exist){
+                    let sql = "insert into imports (importer,clearer,date_created,date_modified) values(?)";
+                    clientPool.getConnection((e,con)=>{
+                        if(e){
+                            console.error(getTimeStamp()+" createImport(): ",e);
+                            reject({msg:"Could not get connection to service",code:1,error:e});
+                        }
+                        else{
+                            con.query(sql,[[data.importer,data.clearer,Date.now(),Date.now()]],(e,r)=>{
+                                if(e){
+                                    con.destroy();
+                                    console.error(getTimeStamp()+" createImport(): ",e);
+                                    reject({msg:"Could not create import record",code:1,error:e});
+                                }
+                                else{
+                                    con.destroy();
+                                    this.getImport(userId,r.insertId)
+                                    .then(result=>{
+                                        resolve({msg:"success",code:0,data:result.data});
+                                    })
+                                    .catch(e=>{
+                                        console.error(getTimeStamp()+" db.getCreateImport(): ",e);
+                                        reject({msg:"Could not retrieve new consignment",code:1,data:null})
+                                    })
+                                }
+                            })
+                        }
+                    })
+                }
+                else{
+                    let sql = "create table if not exists imports (id int(10) auto_increment primary key, status int(2) default 1, importer int(10) not null,clearer int(10) not null,verified int(1) not null default 0,cargo_classification varchar(50),description varchar(255),place_of_origin varchar(50),place_of_delivery varchar(50),port_of_discharge varchar(50), no_of_container int(5),no_of_packages int(5), package_unit varchar(16), gross_weight varchar(10),gross_weight_unit varchar(16),gross_volume varchar(10),gross_volume_unit varchar(16),net_weight varchar(10),net_weight_unit varchar(16),invoice_value varchar(10),invoice_currency varchar(16),freight_charges varchar(10),freight_charge_currency varchar(16),imdg_code varchar(16),packing_type varchar(16),shipping_mask varchar(16),oil_type varchar(16), date_created bigint, date_modified bigint)";
+                    clientPool.getConnection((e,con)=>{
+                        if(e){
+                            reject({code:1,msg:"Could not get connection to service",error:e});
+                        }
+                        else{
+                            con.query(sql,(e,r)=>{
+                                if(e){
+                                    con.destroy();
+                                    console.error(getTimeStamp()+" createImport(): ",e);
+                                    reject({code:1,msg:"Could not create imports",error:e});
+                                }
+                                else{
+                                    let sql = "insert into imports (importer,clearer,date_created,date_modified) values(?)";
+                                    con.query(sql,[[data.importer,data.clearer,Date.now(),Date.now()]],(e,r)=>{
+                                        if(e){
+                                            con.destroy();
+                                            console.error(getTimeStamp()+" createImport(): ",e);
+                                            reject({msg:"Could not create import record",code:1,error:e});
+                                        }
+                                        else{
+                                            con.destroy()
+                                            resolve({msg:"success",code:0,data:r});
+                                        }
+                                    })
+                                       
+                                }
+                            })
+                        }
+                    })
+                }
+            })
+            .catch(e=>{
+                reject({msg:"Could not verify imports table",code:1,error:e});
+            })
+        })
+        .catch(e=>{
+            reject({msg:"Could not authenticate user",code:1,error:e});
+        })
+    })
+}
+exports.getImports=(userId)=>{
+    return new Promise((resolve,reject)=>{
+        this.getUser(userId)
+        .then(result=>{
+            let user = result.data;
+            var clientPool = getClientPool(user);
+            doesTableExist("imports",userId)
+            .then(exist=>{
+                if(exist){
+                    let sql = "select * from imports order by date_created desc";
+                    clientPool.getConnection((e,con)=>{
+                        if(e){
+                            console.error(getTimeStamp()+" db.getImports(): ",e);
+                            reject({code:1,msg:"Could not get connection to service",error:e});
+                        }
+                        else{
+                            if(exist){
+                                con.query(sql,(e,r)=>{
+                                    con.release();
+                                    con.destroy();
+                                    if(e){
+                                        console.error(getTimeStamp()+" db.getImports(): ",e);
+                                        reject({code:1,msg:"Could not get imports",error:e});
+        
+                                    }
+                                    else{
+                                        let consignments = r.map(i=>{
+                                            i.status_text = IMPORTS_STATUS.filter(s=>s.id == i.status)[0].status;
+                                            return i;
+                                        });
+                                        this.getAllUserFiles(userId)
+                                        .then(result=>{
+                                            consginments = r.map(c=>{
+                                                let i = c;
+                                                i.files = result.data.filter(d=>d.refer_id == c.id && d.target == "imports");
+                                                return i;
+                                            });
+                                            let consWithInv = consignments;
+                                            
+                                                    this.getInvoices(userId).then(result=>{
+                                                        consWithInv = consignments.map(c=>{
+                                                            let cs = c;
+                                                            cs.invoices = result.data.filter(rs=>rs.consignment == c.id);
+                                                            return cs;
+                                                        })
+                                                    }).catch(e=>{
+                                                        console.error(getTimeStamp()+" db.getConsignments(): ",e);
+                                                    }).finally(()=>{
+                                                        let consWithPetty = consWithInv;
+                                                        this.getPettyCash(userId).then(result=>{
+                                                        consWithPetty = consWithInv.map(c=>{
+                                                            let cs = c;
+                                                            cs.expenses = result.data.filter(rs=>rs.consignment == c.id);
+                                                            return cs;
+                                                        })
+                                                    }).catch(e=>{
+                                                        console.error(getTimeStamp()+" db.getConsignments(): ",e);
+                                                    }).finally(()=>{
+                                                        resolve({code:0,msg:"Successful",data:consWithPetty})
+                                                    })
+                                                })
+                                                
+                                            })
+                                        .catch(e=>{
+                                            console.error(getTimeStamp()+" db.getConsignments(): ",e);
+                                            reject({code:1,msg:"Could not get consignment fiels",error:e});
+                                        })
+                                       
+                                    }
+                                })
+                            }
+                            else{
+                                let sql = "create table if not exists imports (id int(10) auto_increment primary key, status int(2) default 1, importer int(10) not null,clearer int(10) not null,verified int(1) not null default 0,cargo_classification varchar(50),description varchar(255),place_of_origin varchar(50),place_of_delivery varchar(50),port_of_discharge varchar(50), no_of_container int(5),no_of_packages int(5), package_unit varchar(16), gross_weight varchar(10),gross_weight_unit varchar(16),gross_volume varchar(10),gross_volume_unit varchar(16),net_weight varchar(10),net_weight_unit varchar(16),invoice_value varchar(10),invoice_currency varchar(16),freight_charges varchar(10),freight_charge_currency varchar(16),imdg_code varchar(16),packing_type varchar(16),shipping_mask varchar(16),oil_type varchar(16), date_created bigint, date_modified bigint)";
+                                con.query(sql,(e,r)=>{
+                                    if(e){
+                                        console.error(getTimeStamp()+" db.createImports(): ",e);
+                                        reject({code:1,msg:"Could not create imports table",error:e});
+                                    }
+                                    else{
+                                        resolve({code:0,"msg":"successful",data:[]});
+                                    }
+                                    con.release();
+                                    con.destroy();
+                                })
+                            }
+                        }
+                    })
+                    
+                }
+                else{
+                    let sql = "create table if not exists imports (id int(10) auto_increment primary key, status int(2) default 1, importer int(10) not null,clearer int(10) not null,verified int(1) not null default 0,cargo_classification varchar(50),description varchar(255),place_of_origin varchar(50),place_of_delivery varchar(50),port_of_discharge varchar(50), no_of_container int(5),no_of_packages int(5), package_unit varchar(16), gross_weight varchar(10),gross_weight_unit varchar(16),gross_volume varchar(10),gross_volume_unit varchar(16),net_weight varchar(10),net_weight_unit varchar(16),invoice_value varchar(10),invoice_currency varchar(16),freight_charges varchar(10),freight_charge_currency varchar(16),imdg_code varchar(16),packing_type varchar(16),shipping_mask varchar(16),oil_type varchar(16), date_created bigint, date_modified bigint)";
+                    clientPool.getConnection((e,con)=>{
+                        if(e){
+                            reject({code:1,msg:"Could not get connection to service",error:e});
+                        }
+                        else{
+                            con.query(sql,(e,r)=>{
+                                if(e){
+                                    con.destroy();
+                                    console.error(getTimeStamp()+" createImport(): ",e);
+                                    reject({code:1,msg:"Could not create imports table",error:e});
+                                }
+                                else{
+                                    con.destroy()
+                                    resolve({msg:"success",code:0,data:[]});
+                                 }
+                            })
+                        }
+                    })
+                }
+            })
+            .catch(e=>{
+                reject({msg:"Could not verify imports table",code:1,error:e});
+            })
+        })
+        .catch(e=>{
+            reject({msg:"Could not authenticate user",code:1,error:e});
+        });
+    })
+}
+
+//update consignment file
+exports.updateImportFile = (data)=>{
+    console.log("uploading import file...")
+    return new Promise((resolve,reject)=>{
+        if(data.file){
+            this.getImport(data.user,data.cid)
+            .then(result=>{
+                if(result.data){
+                    var consignment = result.data;
+                    var option = {target:data.target,user:data.user,refer_id:data.cid,name:data.name};
+                    if(data.filename) {
+                        option.isUpdate = true;
+                        option.filename = data.filename;
+                    }
+                    var files = consignment.files.filter(f=>f.refer_id == consignment.id && f.name == data.name);
+                    if(files && files.length > 0){
+                        option.filename = files[0].filename;
+                        option.isUpdate = true;
+                    }
+                    saveFile(data.file,option)
+                    .then(done=>{
+                        if(done){
+                            let status = parseInt(consignment.status);
+                            if(option.name == "tax_assessment" && status <= 2) status = 3;
+                            else if(option.name == "release_stamp" && consignment.status > 4) status = consignment.status;
+                            else if(option.name == "release_stamp" && consignment.status <= 3) status = 4;
+                            else if(option.name =="bill_of_lading" && consignment.status > 4) status = consignment.status;
+                            else status = consignment.status;
+                            this.updateConsignmentStatus(data.user,status,data.cid,"import")
+                            .then(result=>{
+                                resolve(result);
+                            })
+                            .catch(e=>{
+                                reject(e);
+                            })
+                        }
+                        else{
+                            reject({code:1,msg:"Could not save file"});
+                        }
+                        
+                    })
+                    .catch(e=>{
+                        console.error(getTimeStamp()+" db.updateConsignmentFiles(): ",e);
+                        reject(e);
+                    })
+                }
+                else{
+                    console.error(getTimeStamp()+" db.updateConsignmentFiles(): ");
+                    reject({code:1,msg:"Could not find consignment"});
+                }
+            })
+            .catch(e=>{
+                console.error(getTimeStamp()+" db.updateConsignmentFiles(): ",e);
+                reject({code:1,msg:"Could not find consignment",error:e});
+            })
+           
+        }
+        else{
+            reject({code:1,msg:"Invalid file"})
+        }
+    })
+    
+}
+//get single consignment
+exports.getImport = (userId,cid)=>{
+    return new Promise((resolve,reject)=>{
+        this.getUser(userId)
+        .then(result=>{
+            if(result.data){
+                var pool = getClientPool(result.data);
+                pool.getConnection((e,con)=>{
+                    if(e){
+                        console.error(getTimeStamp()+" db.getImport(): ",e);
+                        reject({code:1,msg:"Could not get connection to service",error:e});
+                    }
+                    else{
+                        con.query("select * from imports  where id=? order by id desc",[cid],(e,r)=>{
+                            con.release();
+                            if(e){
+                                console.error(getTimeStamp()+" db.getImport(): ",e);
+                                reject({code:1,msg:"Could not get connection to service",error:e});
+                            }
+                            else{
+                                let consignments = r.map(i=>{
+                                    i.status_text = IMPORTS_STATUS.filter(s=>s.id == i.status)[0].status;
+                                    return i;
+                                });
+                                this.getAllUserFiles(userId)
+                                .then(result=>{
+                                    consginments = consignments.map(c=>{
+                                        let i = c;
+                                        i.files = result.data.filter(d=>d.refer_id == c.id && d.target == "imports");
+                                        return i;
+                                    });
+                                    
+                                    let consWithInv = consignments;
+                                        this.getInvoices(userId).then(result=>{
+                                            consWithInv = consignments.map(c=>{
+                                                let cs = c;
+                                                cs.invoices = result.data.filter(rs=>rs.consignment == c.id);
+                                                return cs;
+                                            })
+                                        }).catch(e=>{
+                                            console.error(getTimeStamp()+" db.getImport(): ",e);
+                                        }).finally(()=>{
+                                            let consWithPetty = consWithInv;
+                                            this.getPettyCash(userId).then(result=>{
+                                            consWithInv = consWithInv.map(c=>{
+                                                let cs = c;
+                                                cs.expenses = result.data.filter(rs=>rs.consignment == c.id);
+                                                return cs;
+                                                })
+                                            }).catch(e=>{
+                                                console.error(getTimeStamp()+" db.getImport(): ",e);
+                                            }).finally(()=>{
+                                                resolve({code:0,msg:"Successful",data:consWithPetty[0]})
+                                            })
+                                        })
+                                        
+                                    })
+                                    .catch(e=>{
+                                       console.error(getTimeStamp()+" db.getImport(): ",e); 
+                                    })
+                                    .finally(()=>{
+                                        resolve({code:0,msg:"Successful",data:consignments[0]})
+                                    })
+                                
+                            }
+                        })
+                    }
+                })
+            }
+            else{
+                console.error(getTimeStamp()+" db.getImport() :",result.data);
+                reject({code:1,msg:"Invalid user"})
+            }
+        })
+        .catch(e=>{
+            console.error(getTimeStamp()+" db.getImport() :",e);
+            reject({code:1,msg:"You need to login",error:e})
         })
     })
 }

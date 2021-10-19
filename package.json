@@ -9,9 +9,11 @@
     "express": "^4.17.1",
     "http": "^0.0.1-security",
     "mysql": "^2.18.1",
-    "mysql2": "^2.2.5"
+    "mysql2": "^2.2.5",
+    "nodemon": "^2.0.13"
   },
   "devDependencies": {
+    "concurrently": "^6.3.0",
     "cors": "^2.8.5",
     "dotenv": "^10.0.0",
     "jsonwebtoken": "^8.5.1",
@@ -19,8 +21,7 @@
   },
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "node server.js",
-    "startAuth": "node authServer.js"
+    "start": "concurrently --kill-others \"node server.js\" \" node authServer.js\""
   },
   "repository": {
     "type": "git",

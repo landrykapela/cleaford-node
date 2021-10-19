@@ -532,12 +532,20 @@ app.post("/user", (req, result) => {
 //updload consignment fiels
 app.post("/uploads",authenticateToken,(req,res)=>{
   var data = {name:req.body.name,cid:req.body.cid,file:req.body.file,target:req.body.target,user:req.body.user};
+  if(req.body.type == "import"){
+    db.updateImportFile(data).then(result=>res.status(201).json(result))
+    .catch(e=>{
+      res.status(200).json(e);
+    })
+  }
+  else{
   db.updateConsignmentFile(data).then(result=>{
     res.status(201).json(result);
   })
   .catch(er=>{
     res.status(200).json(er);
   })
+}
 })
 //delete uploaded files
 app.delete("/uploads/:user_id/:file_id",authenticateToken,(req,res)=>{
@@ -782,5 +790,23 @@ app.get("/petty_cash/:userId",authenticateToken,(req,res)=>{
     })
   })
 
- 
+  //imports
+  app.post("/imports/:userId",authenticateToken,(req,res)=>{
+    db.createImport(req.params.userId,req.body)
+    .then(result=>{
+      res.status(201).json(result);
+    })
+    .catch(e=>{
+      res.status(200).json(e)
+    })
+  });
+  app.get("/imports/:userId",authenticateToken,(req,res)=>{
+    db.getImports(req.params.userId)
+    .then(result=>{
+      res.status(200).json(result);
+    }).catch(e=>{
+      res.status(200).json(e);
+    })
+    
+  })
 module.exports = app;
