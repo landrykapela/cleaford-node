@@ -76,6 +76,7 @@ const doesTableExist = (tableName,userId)=>{
                                 reject(false);
                             }
                             else{
+                                con.destroy();
                                 var key = "Tables_in_"+result.data.db;
                                 if(r && r.length > 0){
                                     var table = r.filter(i=>i[key].toLowerCase() == tableName.toLowerCase());
@@ -88,7 +89,7 @@ const doesTableExist = (tableName,userId)=>{
                                 }
                                 else resolve(false);
                             }
-                            con.destroy();
+                            
                         });
                         
                     }
@@ -1930,7 +1931,7 @@ exports.createConsignment =(data)=>{
 }
 
 //get all consignments for user
-exports.getConsignments = (userId)=>{
+exports.getConsignments = (userId,type=null)=>{
     return new Promise((resolve,reject)=>{
         this.getUser(userId)
         .then(result=>{
@@ -1944,7 +1945,8 @@ exports.getConsignments = (userId)=>{
                         }
                         else{
                             if(exist){
-                                con.query("select * from consignments_tb order by id desc",(e,r)=>{
+                                let t = type == null || type == undefined ? 0:1;
+                                con.query("select * from consignments_tb where type=? order by id desc",[t],(e,r)=>{
                                     con.release();
                                     con.destroy();
                                     if(e){
@@ -2277,7 +2279,7 @@ exports.updateConsignment =(data)=>{
                                     }
                                     else{
                                         con.release();
-                                        this.getConsignments(userId)
+                                        this.getConsignments(userId,data.type)
                                         .then(result=>{
                                             resolve({code:0,msg:"Successful",data:result.data});
                                         })
@@ -3971,23 +3973,22 @@ exports.getPettyCash = (userId)=>{
 
 //imports
 exports.createImport=(userId,data)=>{
-    console.log("d: ",data);
     return new Promise((resolve,reject)=>{
         this.getUser(userId)
         .then(result=>{
             let user = result.data;
             var clientPool = getClientPool(user);
-            doesTableExist("imports",userId)
+            doesTableExist("consignments_tb",userId)
             .then(exist=>{
                 if(exist){
-                    let sql = "insert into imports (importer,clearer,date_created,date_modified) values(?)";
+                    let sql = "insert into consignments_tb (status,type,exporter_id,forwarder_id,forwarder_code,user,date_created,date_modified) values(?)";
                     clientPool.getConnection((e,con)=>{
                         if(e){
                             console.error(getTimeStamp()+" createImport(): ",e);
                             reject({msg:"Could not get connection to service",code:1,error:e});
                         }
                         else{
-                            con.query(sql,[[data.importer,data.clearer,Date.now(),Date.now()]],(e,r)=>{
+                            con.query(sql,[[1,data.type,data.importer,data.clearer,data.code,userId,Date.now(),Date.now()]],(e,r)=>{
                                 if(e){
                                     con.destroy();
                                     console.error(getTimeStamp()+" createImport(): ",e);
@@ -4009,7 +4010,49 @@ exports.createImport=(userId,data)=>{
                     })
                 }
                 else{
-                    let sql = "create table if not exists imports (id int(10) auto_increment primary key, status int(2) default 1, importer int(10) not null,clearer int(10) not null,verified int(1) not null default 0,cargo_classification varchar(50),description varchar(255),place_of_origin varchar(50),place_of_delivery varchar(50),port_of_discharge varchar(50), no_of_container int(5),no_of_packages int(5), package_unit varchar(16), gross_weight varchar(10),gross_weight_unit varchar(16),gross_volume varchar(10),gross_volume_unit varchar(16),net_weight varchar(10),net_weight_unit varchar(16),invoice_value varchar(10),invoice_currency varchar(16),freight_charges varchar(10),freight_charge_currency varchar(16),imdg_code varchar(16),packing_type varchar(16),shipping_mask varchar(16),oil_type varchar(16), date_created bigint, date_modified bigint)";
+                    let sql = "CREATE TABLE `consignments_tb` if not exists ("+
+                                    "`id` int not null auto_increment primary key,"+
+                                    "`status` int DEFAULT NULL,"+
+                                    "`date_created` bigint DEFAULT NULL,"+
+                                    "`date_modified` bigint DEFAULT NULL,"+
+                                    "`cargo_classification` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci DEFAULT NULL,"+
+                                   " `place_of_destination` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci DEFAULT NULL,"+
+                                    "`place_of_delivery` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci DEFAULT NULL,"+
+                                    "`port_of_discharge` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci DEFAULT NULL,"+
+                                   " `port_of_origin` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci DEFAULT NULL,"+
+                                    "`no_of_containers` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci DEFAULT NULL,"+
+                                    "`goods_description` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci DEFAULT NULL,"+
+                                   " `no_of_packages` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci DEFAULT NULL,"+
+                                    "`package_unit` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci DEFAULT NULL,"+
+                                    "`gross_weight` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci DEFAULT NULL,"+
+                                    "`gross_weight_unit` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci DEFAULT NULL,"+
+                                   " `gross_volume` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci DEFAULT NULL,"+
+                                    "`gross_volume_unit` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci DEFAULT NULL,"+
+                                    "`net_weight` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci DEFAULT NULL,"+
+                                    "`net_weight_unit` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci DEFAULT NULL,"+
+                                    "`invoice_value` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci DEFAULT NULL,"+
+                                    "`invoice_currency` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci DEFAULT NULL,"+
+                                    "`freight_charge` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci DEFAULT NULL,"+
+                                    "`freight_currency` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci DEFAULT NULL,"+
+                                    "`imdg_code` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci DEFAULT NULL,"+
+                                   " `packing_type` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci DEFAULT NULL,"+
+                                    "`oil_type` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci DEFAULT NULL,"+
+                                    "`shipping_mark` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci DEFAULT NULL,"+
+                                    "`user` int NOT NULL,"+
+                                    "`consignee_name` varchar(255) DEFAULT NULL,"+
+                                    "`consignee_phone` varchar(15) DEFAULT NULL,"+
+                                    "`consignee_address` varchar(255) DEFAULT NULL,"+
+                                    "`consignee_tin` varchar(20) DEFAULT NULL,"+
+                                    "`notify_name` varchar(255) DEFAULT NULL,"+
+                                    "`notify_phone` varchar(15) DEFAULT NULL,"+
+                                    "`notify_address` varchar(255) DEFAULT NULL,"+
+                                    "`notify_tin` varchar(20) DEFAULT NULL,"+
+                                    "`exporter_id` int DEFAULT NULL,"+
+                                   " `forwarder_id` int DEFAULT NULL,"+
+                                    "`forwarder_code` varchar(20) DEFAULT NULL,"+
+                                    "`type` int NOT NULL DEFAULT '0' COMMENT 'Type of consignment. 0 for export and 1 for import'"+
+                                  ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci";
+                                
                     clientPool.getConnection((e,con)=>{
                         if(e){
                             reject({code:1,msg:"Could not get connection to service",error:e});
@@ -4022,8 +4065,8 @@ exports.createImport=(userId,data)=>{
                                     reject({code:1,msg:"Could not create imports",error:e});
                                 }
                                 else{
-                                    let sql = "insert into imports (importer,clearer,date_created,date_modified) values(?)";
-                                    con.query(sql,[[data.importer,data.clearer,Date.now(),Date.now()]],(e,r)=>{
+                                    let sql = "insert into consignments_tb (status,type,exporter_id,forwarder_id,forwarder_code,user,date_created,date_modified) values(?)";
+                                     con.query(sql,[[1,data.type,data.importer,data.clearer,data.code,userId,Date.now(),Date.now()]],(e,r)=>{
                                         if(e){
                                             con.destroy();
                                             console.error(getTimeStamp()+" createImport(): ",e);
@@ -4042,7 +4085,7 @@ exports.createImport=(userId,data)=>{
                 }
             })
             .catch(e=>{
-                reject({msg:"Could not verify imports table",code:1,error:e});
+                reject({msg:"Could not verify consignments table",code:1,error:e});
             })
         })
         .catch(e=>{
@@ -4056,113 +4099,130 @@ exports.getImports=(userId)=>{
         .then(result=>{
             let user = result.data;
             var clientPool = getClientPool(user);
-            doesTableExist("imports",userId)
+            doesTableExist("consignments_tb",userId)
             .then(exist=>{
                 if(exist){
-                    let sql = "select * from imports order by date_created desc";
+                    let sql = "select * from consignments_tb where type=1 order by date_created desc";
                     clientPool.getConnection((e,con)=>{
                         if(e){
                             console.error(getTimeStamp()+" db.getImports(): ",e);
                             reject({code:1,msg:"Could not get connection to service",error:e});
                         }
                         else{
-                            if(exist){
-                                con.query(sql,(e,r)=>{
-                                    con.release();
-                                    con.destroy();
-                                    if(e){
-                                        console.error(getTimeStamp()+" db.getImports(): ",e);
-                                        reject({code:1,msg:"Could not get imports",error:e});
-        
-                                    }
-                                    else{
-                                        let consignments = r.map(i=>{
-                                            i.status_text = IMPORTS_STATUS.filter(s=>s.id == i.status)[0].status;
-                                            return i;
-                                        });
-                                        this.getAllUserFiles(userId)
-                                        .then(result=>{
-                                            consginments = r.map(c=>{
-                                                let i = c;
-                                                i.files = result.data.filter(d=>d.refer_id == c.id && d.target == "imports");
-                                                return i;
-                                            });
-                                            let consWithInv = consignments;
-                                            
-                                                    this.getInvoices(userId).then(result=>{
-                                                        consWithInv = consignments.map(c=>{
-                                                            let cs = c;
-                                                            cs.invoices = result.data.filter(rs=>rs.consignment == c.id);
-                                                            return cs;
-                                                        })
-                                                    }).catch(e=>{
-                                                        console.error(getTimeStamp()+" db.getConsignments(): ",e);
-                                                    }).finally(()=>{
-                                                        let consWithPetty = consWithInv;
-                                                        this.getPettyCash(userId).then(result=>{
-                                                        consWithPetty = consWithInv.map(c=>{
-                                                            let cs = c;
-                                                            cs.expenses = result.data.filter(rs=>rs.consignment == c.id);
-                                                            return cs;
-                                                        })
-                                                    }).catch(e=>{
-                                                        console.error(getTimeStamp()+" db.getConsignments(): ",e);
-                                                    }).finally(()=>{
-                                                        resolve({code:0,msg:"Successful",data:consWithPetty})
-                                                    })
-                                                })
-                                                
-                                            })
-                                        .catch(e=>{
-                                            console.error(getTimeStamp()+" db.getConsignments(): ",e);
-                                            reject({code:1,msg:"Could not get consignment fiels",error:e});
-                                        })
-                                       
-                                    }
-                                })
-                            }
-                            else{
-                                let sql = "create table if not exists imports (id int(10) auto_increment primary key, status int(2) default 1, importer int(10) not null,clearer int(10) not null,verified int(1) not null default 0,cargo_classification varchar(50),description varchar(255),place_of_origin varchar(50),place_of_delivery varchar(50),port_of_discharge varchar(50), no_of_container int(5),no_of_packages int(5), package_unit varchar(16), gross_weight varchar(10),gross_weight_unit varchar(16),gross_volume varchar(10),gross_volume_unit varchar(16),net_weight varchar(10),net_weight_unit varchar(16),invoice_value varchar(10),invoice_currency varchar(16),freight_charges varchar(10),freight_charge_currency varchar(16),imdg_code varchar(16),packing_type varchar(16),shipping_mask varchar(16),oil_type varchar(16), date_created bigint, date_modified bigint)";
-                                con.query(sql,(e,r)=>{
-                                    if(e){
-                                        console.error(getTimeStamp()+" db.createImports(): ",e);
-                                        reject({code:1,msg:"Could not create imports table",error:e});
-                                    }
-                                    else{
-                                        resolve({code:0,"msg":"successful",data:[]});
-                                    }
-                                    con.release();
-                                    con.destroy();
-                                })
-                            }
-                        }
-                    })
-                    
-                }
-                else{
-                    let sql = "create table if not exists imports (id int(10) auto_increment primary key, status int(2) default 1, importer int(10) not null,clearer int(10) not null,verified int(1) not null default 0,cargo_classification varchar(50),description varchar(255),place_of_origin varchar(50),place_of_delivery varchar(50),port_of_discharge varchar(50), no_of_container int(5),no_of_packages int(5), package_unit varchar(16), gross_weight varchar(10),gross_weight_unit varchar(16),gross_volume varchar(10),gross_volume_unit varchar(16),net_weight varchar(10),net_weight_unit varchar(16),invoice_value varchar(10),invoice_currency varchar(16),freight_charges varchar(10),freight_charge_currency varchar(16),imdg_code varchar(16),packing_type varchar(16),shipping_mask varchar(16),oil_type varchar(16), date_created bigint, date_modified bigint)";
-                    clientPool.getConnection((e,con)=>{
-                        if(e){
-                            reject({code:1,msg:"Could not get connection to service",error:e});
-                        }
-                        else{
                             con.query(sql,(e,r)=>{
+                                con.release();
+                                con.destroy();
                                 if(e){
-                                    con.destroy();
-                                    console.error(getTimeStamp()+" createImport(): ",e);
-                                    reject({code:1,msg:"Could not create imports table",error:e});
+                                    console.error(getTimeStamp()+" db.getImports(): ",e);
+                                    reject({code:1,msg:"Could not get imports",error:e});
+    
                                 }
                                 else{
-                                    con.destroy()
-                                    resolve({msg:"success",code:0,data:[]});
-                                 }
+                                    let consignments = r.map(i=>{
+                                        i.status_text = IMPORTS_STATUS.filter(s=>s.id == i.status)[0].status;
+                                        return i;
+                                    });
+                                    this.getAllUserFiles(userId)
+                                    .then(result=>{
+                                        consginments = consignments.map(c=>{
+                                            let i = c;
+                                            i.files = result.data.filter(d=>d.refer_id == c.id);
+                                            return i;
+                                        });
+                                        let consWithInv = consignments;
+                                        
+                                                this.getInvoices(userId).then(result=>{
+                                                    consWithInv = consignments.map(c=>{
+                                                        let cs = c;
+                                                        cs.invoices = result.data.filter(rs=>rs.consignment == c.id);
+                                                        return cs;
+                                                    })
+                                                }).catch(e=>{
+                                                    console.error(getTimeStamp()+" db.getImports(): ",e);
+                                                }).finally(()=>{
+                                                    let consWithPetty = consWithInv;
+                                                    this.getPettyCash(userId).then(result=>{
+                                                    consWithPetty = consWithInv.map(c=>{
+                                                        let cs = c;
+                                                        cs.expenses = result.data.filter(rs=>rs.consignment == c.id);
+                                                        return cs;
+                                                    })
+                                                }).catch(e=>{
+                                                    console.error(getTimeStamp()+" db.getImports(): ",e);
+                                                }).finally(()=>{
+                                                    resolve({code:0,msg:"Successful",data:consWithPetty})
+                                                })
+                                            })
+                                            
+                                        })
+                                    .catch(e=>{
+                                        console.error(getTimeStamp()+" db.getConsignments(): ",e);
+                                        reject({code:1,msg:"Could not get consignment fiels",error:e});
+                                    })
+                                    
+                                }
                             })
+                            }
+                        })
+                }
+                else{
+                    let sql = "CREATE TABLE `consignments_tb` if not exists ("+
+                        "`id` int not null auto_increment primary key,"+
+                        "`status` int DEFAULT NULL,"+
+                        "`date_created` bigint DEFAULT NULL,"+
+                        "`date_modified` bigint DEFAULT NULL,"+
+                        "`cargo_classification` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci DEFAULT NULL,"+
+                        " `place_of_destination` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci DEFAULT NULL,"+
+                        "`place_of_delivery` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci DEFAULT NULL,"+
+                        "`port_of_discharge` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci DEFAULT NULL,"+
+                        " `port_of_origin` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci DEFAULT NULL,"+
+                        "`no_of_containers` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci DEFAULT NULL,"+
+                        "`goods_description` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci DEFAULT NULL,"+
+                        " `no_of_packages` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci DEFAULT NULL,"+
+                        "`package_unit` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci DEFAULT NULL,"+
+                        "`gross_weight` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci DEFAULT NULL,"+
+                        "`gross_weight_unit` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci DEFAULT NULL,"+
+                        " `gross_volume` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci DEFAULT NULL,"+
+                        "`gross_volume_unit` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci DEFAULT NULL,"+
+                        "`net_weight` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci DEFAULT NULL,"+
+                        "`net_weight_unit` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci DEFAULT NULL,"+
+                        "`invoice_value` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci DEFAULT NULL,"+
+                        "`invoice_currency` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci DEFAULT NULL,"+
+                        "`freight_charge` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci DEFAULT NULL,"+
+                        "`freight_currency` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci DEFAULT NULL,"+
+                        "`imdg_code` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci DEFAULT NULL,"+
+                        " `packing_type` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci DEFAULT NULL,"+
+                        "`oil_type` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci DEFAULT NULL,"+
+                        "`shipping_mark` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci DEFAULT NULL,"+
+                        "`user` int NOT NULL,"+
+                        "`consignee_name` varchar(255) DEFAULT NULL,"+
+                        "`consignee_phone` varchar(15) DEFAULT NULL,"+
+                        "`consignee_address` varchar(255) DEFAULT NULL,"+
+                        "`consignee_tin` varchar(20) DEFAULT NULL,"+
+                        "`notify_name` varchar(255) DEFAULT NULL,"+
+                        "`notify_phone` varchar(15) DEFAULT NULL,"+
+                        "`notify_address` varchar(255) DEFAULT NULL,"+
+                        "`notify_tin` varchar(20) DEFAULT NULL,"+
+                        "`exporter_id` int DEFAULT NULL,"+
+                        " `forwarder_id` int DEFAULT NULL,"+
+                        "`forwarder_code` varchar(20) DEFAULT NULL,"+
+                        "`type` int NOT NULL DEFAULT '0' COMMENT 'Type of consignment. 0 for export and 1 for import'"+
+                        ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci";
+                    con.query(sql,(e,r)=>{
+                        if(e){
+                            console.error(getTimeStamp()+" db.createImports(): ",e);
+                            reject({code:1,msg:"Could not create imports table",error:e});
                         }
+                        else{
+                            resolve({code:0,"msg":"successful",data:[]});
+                        }
+                        con.release();
+                        con.destroy();
                     })
                 }
             })
             .catch(e=>{
-                reject({msg:"Could not verify imports table",code:1,error:e});
+            reject({msg:"Could not verify imports table",code:1,error:e});
             })
         })
         .catch(e=>{
@@ -4213,7 +4273,7 @@ exports.updateImportFile = (data)=>{
                         
                     })
                     .catch(e=>{
-                        console.error(getTimeStamp()+" db.updateConsignmentFiles(): ",e);
+                        console.error(getTimeStamp()+" db.updateImportFile(): ",e);
                         reject(e);
                     })
                 }
@@ -4247,7 +4307,7 @@ exports.getImport = (userId,cid)=>{
                         reject({code:1,msg:"Could not get connection to service",error:e});
                     }
                     else{
-                        con.query("select * from imports  where id=? order by id desc",[cid],(e,r)=>{
+                        con.query("select * from consignments_tb  where id=? order by id desc",[cid],(e,r)=>{
                             con.release();
                             if(e){
                                 console.error(getTimeStamp()+" db.getImport(): ",e);
@@ -4262,7 +4322,7 @@ exports.getImport = (userId,cid)=>{
                                 .then(result=>{
                                     consginments = consignments.map(c=>{
                                         let i = c;
-                                        i.files = result.data.filter(d=>d.refer_id == c.id && d.target == "imports");
+                                        i.files = result.data.filter(d=>d.refer_id == c.id);
                                         return i;
                                     });
                                     
@@ -4278,7 +4338,7 @@ exports.getImport = (userId,cid)=>{
                                         }).finally(()=>{
                                             let consWithPetty = consWithInv;
                                             this.getPettyCash(userId).then(result=>{
-                                            consWithInv = consWithInv.map(c=>{
+                                                consWithPetty= consWithInv.map(c=>{
                                                 let cs = c;
                                                 cs.expenses = result.data.filter(rs=>rs.consignment == c.id);
                                                 return cs;

@@ -489,6 +489,7 @@ app.post("/user", (req, result) => {
  //update consignments
  app.put("/consignments/:user_id/:consignment_id",authenticateToken,(req,res)=>{
    var data = {
+        type:req.body.type,
         cargo_classification:req.body.cargo_classification,
         place_of_destination:req.body.place_of_destination,
         place_of_delivery:req.body.place_of_delivery,
