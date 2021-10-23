@@ -1014,7 +1014,7 @@ exports.getCustomersList =(userId)=>{
                                     var files = result.data;
                                     let newCusomerList = customers.map(c=>{
                                         let nCust = c;
-                                        nCust.files = files.filter(f=>f.refer_id == c.id);
+                                        nCust.files = files.filter(f=>f.refer_id == c.id && d.target == "customer_tb");
                                         return nCust;
                                     });
                                     resolve({code:0,msg:"Successful",data:newCusomerList});
@@ -1956,14 +1956,14 @@ exports.getConsignments = (userId,type=null)=>{
                                     }
                                     else{
                                         let consignments = r.map(i=>{
-                                            i.status_text = CONSIGNMENT_STATUS.filter(s=>s.id == i.status)[0].status;
+                                            i.status_text = type == null ? CONSIGNMENT_STATUS.filter(s=>s.id == i.status)[0].status:IMPORTS_STATUS.filter(s=>s.id == i.status)[0].status;
                                             return i;
                                         });
                                         this.getAllUserFiles(userId)
                                         .then(result=>{
                                             consginments = r.map(c=>{
                                                 let i = c;
-                                                i.files = result.data.filter(d=>d.refer_id == c.id);
+                                                i.files = result.data.filter(d=>d.refer_id == c.id && d.target =="consignments_tb");
                                                 return i;
                                             });
                                             let consignmentsWithShipping = consignments;
@@ -2083,7 +2083,7 @@ exports.getConsignment = (userId,cid)=>{
                             }
                             else{
                                 let consignments = r.map(i=>{
-                                    i.status_text = CONSIGNMENT_STATUS.filter(s=>s.id == i.status)[0].status;
+                                    i.status_text = i.type == 0 ? CONSIGNMENT_STATUS.filter(s=>s.id == i.status)[0].status: IMPORTS_STATUS.filter(s=>s.id == i.status)[0].status;
                                     return i;
                                 });
                                 this.getAllUserFiles(userId)
@@ -2321,7 +2321,7 @@ exports.updateConsignment =(data)=>{
                                 }
                                 else{
                                     con.release();
-                                    this.getConsignments(userId)
+                                    this.getConsignments(userId,data.type)
                                     .then(result=>{
                                         resolve({code:0,msg:"Successful",data:result.data});
                                     })
@@ -2422,7 +2422,7 @@ exports.updateConsignmentStatus = (userId,status,cid,type=null)=>{
                                         reject({code:1,msg:"Could not get connection to service",error:e});
                                     }
                                     else{
-                                        var sql = "update imports set status=?,date_modified=? where id=?";
+                                        var sql = "update consignments_tb set status=?,date_modified=? where id=?";
                                         var values = [status,Date.now(),cid];
                     
                                         con.query(sql,values,(e,r)=>{
@@ -4050,7 +4050,13 @@ exports.createImport=(userId,data)=>{
                                     "`exporter_id` int DEFAULT NULL,"+
                                    " `forwarder_id` int DEFAULT NULL,"+
                                     "`forwarder_code` varchar(20) DEFAULT NULL,"+
-                                    "`type` int NOT NULL DEFAULT '0' COMMENT 'Type of consignment. 0 for export and 1 for import'"+
+                                    "`type` int NOT NULL DEFAULT '0' COMMENT 'Type of consignment. 0 for export and 1 for import',"+
+                                    "`assessment_date` bigint DEFAULT NULL,"+
+                                    "`verification_date` datetime DEFAULT NULL,"+
+                                    "`assessment_appealed` int DEFAULT NULL,"+
+                                    "`comments` varchar(255) DEFAULT NULL,"+
+                                   " `tax_amount` varchar(20) DEFAULT NULL,"+
+                                    "`tax_currency` varchar(16) DEFAULT NULL"+
                                   ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci";
                                 
                     clientPool.getConnection((e,con)=>{
@@ -4120,13 +4126,17 @@ exports.getImports=(userId)=>{
                                 else{
                                     let consignments = r.map(i=>{
                                         i.status_text = IMPORTS_STATUS.filter(s=>s.id == i.status)[0].status;
+                                        i.files = [];
+                                        i.expenses = [];
+                                        i.invoices=[];
                                         return i;
                                     });
                                     this.getAllUserFiles(userId)
                                     .then(result=>{
+                                        console.log("whatdadfa: ",result);
                                         consginments = consignments.map(c=>{
                                             let i = c;
-                                            i.files = result.data.filter(d=>d.refer_id == c.id);
+                                            i.files = result.data.filter(d=>d.refer_id == c.id && d.target =="imports");
                                             return i;
                                         });
                                         let consWithInv = consignments;
@@ -4206,7 +4216,13 @@ exports.getImports=(userId)=>{
                         "`exporter_id` int DEFAULT NULL,"+
                         " `forwarder_id` int DEFAULT NULL,"+
                         "`forwarder_code` varchar(20) DEFAULT NULL,"+
-                        "`type` int NOT NULL DEFAULT '0' COMMENT 'Type of consignment. 0 for export and 1 for import'"+
+                        "`type` int NOT NULL DEFAULT '0' COMMENT 'Type of consignment. 0 for export and 1 for import'"+ 
+                        "`assessment_date` bigint DEFAULT NULL,"+
+                        "`verification_date` datetime DEFAULT NULL,"+
+                        "`assessment_appealed` int DEFAULT NULL,"+
+                        "`comments` varchar(255) DEFAULT NULL,"+
+                       " `tax_amount` varchar(20) DEFAULT NULL,"+
+                        "`tax_currency` varchar(16) DEFAULT NULL"+
                         ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci";
                     con.query(sql,(e,r)=>{
                         if(e){
@@ -4254,10 +4270,10 @@ exports.updateImportFile = (data)=>{
                     .then(done=>{
                         if(done){
                             let status = parseInt(consignment.status);
-                            if(option.name == "tax_assessment" && status <= 2) status = 3;
+                            if(option.name == "tax_assessment_receipt" && status <= 3) status = 4;
                             else if(option.name == "release_stamp" && consignment.status > 4) status = consignment.status;
-                            else if(option.name == "release_stamp" && consignment.status <= 3) status = 4;
-                            else if(option.name =="bill_of_lading" && consignment.status > 4) status = consignment.status;
+                            else if(option.name == "release_stamp" && consignment.status <= 4) status = 5;
+                            else if(option.name =="bill_of_lading" && consignment.status >= 1) status = consignment.status;
                             else status = consignment.status;
                             this.updateConsignmentStatus(data.user,status,data.cid,"import")
                             .then(result=>{
@@ -4316,13 +4332,17 @@ exports.getImport = (userId,cid)=>{
                             else{
                                 let consignments = r.map(i=>{
                                     i.status_text = IMPORTS_STATUS.filter(s=>s.id == i.status)[0].status;
+                                    i.expenses =[];
+                                    i.files = [];
+                                    i.invoices=[];
                                     return i;
                                 });
                                 this.getAllUserFiles(userId)
                                 .then(result=>{
-                                    consginments = consignments.map(c=>{
+                                    console.log("whatchout: ",result);
+                                    consignments = consignments.map(c=>{
                                         let i = c;
-                                        i.files = result.data.filter(d=>d.refer_id == c.id);
+                                        i.files = result.data.filter(d=>d.refer_id == c.id && d.target == "imports");
                                         return i;
                                     });
                                     
