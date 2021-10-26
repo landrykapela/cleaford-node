@@ -9,11 +9,10 @@ const IMPORTS_STATUS = [
     {id:1,status:"Document Checklist"},
     {id:2,status:"Consignmnt Data"},
     {id:3,status:"Pending Tax Assessment"},
-    {id:4,status:"Pending Verification Booking"},
-    {id:5,status:"Pending Verification"},
-    {id:6,status:"Pending TASAD Payment"}, 
-    {id:7,status:"Completed"},
-    {id:8,status:"Closed"}]
+    {id:4,status:"Pending Verification"},
+    {id:5,status:"Pending Delivery Order"}, 
+    {id:6,status:"Completed"},
+    {id:7,status:"Closed"}]
 
 //consignment status
 const CONSIGNMENT_STATUS = [
@@ -154,8 +153,8 @@ const saveFile = (encodedData,options)=>{
                                 var sql = "insert into user_files (name,refer_id,target,filename) values(?) on duplicate key update name=values(name),target=values(target)";
                                 var values = [[name,options.refer_id,options.target,filename]];
                                 if(options.isUpdate) {
-                                    sql = "update user_files set filename=? where refer_id=? and name=?";
-                                    values = [filename,options.refer_id,options.name];
+                                    sql = "update user_files set filename=? where refer_id=? and name=? and target=?";
+                                    values = [filename,options.refer_id,options.name,options.target];
                                 }
                                 pool.getConnection((e,con)=>{
                                     if(e){
@@ -2234,12 +2233,34 @@ exports.updateConsignmentFile = (data)=>{
 }
 //create consignment
 exports.updateConsignment =(data)=>{
+    var isTap = data.isUpdateTap;
+    var isTar = data.isUpdateTar;
+    var isRelease = data.isUpdateRelease;
+    var isTsr = data.isUpdateTsr;
+    var isTsd = data.isUpdateTsd;
+    
     var consId = data.id;
     var userId = data.user;
     var instructions_file = data.instructions_file;
+    var tax_assessment_report = data.tax_assessment_report;
+    var tax_assessment_receipt = data.tax_assessment_receipt;
+    var release_order = data.release_order;
+    var tasad_delivery_order = data.tasad_delivery_order;
+    var tasad_invoice = data.tasad_invoice;
     delete data.id;
     delete data.user;
     delete data.instructions_file;
+    delete data.tax_assessment_receipt;
+    delete data.tax_assessment_report;
+    delete data.release_order;
+    delete data.isUpdateTap;
+    delete data.isUpdateTar;
+    delete data.isUpdateRelease;
+    delete data.tasad_invoice;
+    delete data.tasad_delivery_order;
+    delete data.isUpdateTsr;
+    delete data.isUpdateTsd;
+
     console.log("data: ",data);
     return new Promise((resolve,reject)=>{
         this.getUser(userId).then(result=>{
@@ -2296,6 +2317,307 @@ exports.updateConsignment =(data)=>{
                                 reject({code:1,msg:"Could not save file"});
                             })
                            
+                        }
+                        else if(tax_assessment_report != null){
+                            saveFile(tax_assessment_report,{user:userId,target:'imports',refer_id:consId,name:"tax_assessment_report",isUpdate:isTap})
+                            .then(fileId=>{
+                                if(tax_assessment_receipt != null){
+                                    saveFile(tax_assessment_receipt,{user:userId,target:'imports',refer_id:consId,name:"tax_assessment_receipt",isUpdate:isTar})
+                                    .then(fileId=>{
+                                        var updateSql = "update consignments_tb set ";
+                                        var now = Date.now();
+                                        var keys = Object.keys(data);
+                                        var values = Object.values(data);
+                                        keys.forEach((key,index)=>{
+                                            if(index < keys.length -1){
+                                                updateSql += key +"=?, ";
+                                                
+                                            }
+                                            else{
+                                                updateSql += key+"=?, date_modified=? where id=?";
+                                                        
+                                            }
+                                        });
+                                        values.push(now);
+                                        values.push(consId);
+                                        con.query(updateSql,values,(e,r)=>{
+                                            if(e){
+                                                console.error(getTimeStamp()+" db.updateConsignment(): ",e);
+                                                reject({code:1,msg:"Could not update consignment record",error:e});
+                                            }
+                                            else{
+                                                con.release();
+                                                this.getConsignments(userId,data.type)
+                                                .then(result=>{
+                                                    resolve({code:0,msg:"Successful",data:result.data});
+                                                })
+                                                .catch(err=>{
+                                                    console.error(getTimeStamp()+" db.updateConsignment(): ",err);
+                                                    reject({code:1,msg:"Could not get consignments list",error:err});
+                                                })
+                                                
+                                            }
+                                        })
+                                    })
+                                    .catch(e=>{
+                                        console.error(getTimeStamp()+" saveFile(): Could not save tax assessment receipt file");
+                                        reject({code:1,msg:"Could not save tax assessment receipt file"});
+                                    })
+                                }
+                                else{
+                                    var updateSql = "update consignments_tb set ";
+                                    var now = Date.now();
+                                    var keys = Object.keys(data);
+                                    var values = Object.values(data);
+                                    keys.forEach((key,index)=>{
+                                        if(index < keys.length -1){
+                                            updateSql += key +"=?, ";
+                                            
+                                        }
+                                        else{
+                                            updateSql += key+"=?, date_modified=? where id=?";
+                                                    
+                                        }
+                                    });
+                                    values.push(now);
+                                    values.push(consId);
+                                    con.query(updateSql,values,(e,r)=>{
+                                        if(e){
+                                            console.error(getTimeStamp()+" db.updateConsignment(): ",e);
+                                            reject({code:1,msg:"Could not update consignment record",error:e});
+                                        }
+                                        else{
+                                            con.release();
+                                            this.getConsignments(userId,data.type)
+                                            .then(result=>{
+                                                resolve({code:0,msg:"Successful",data:result.data});
+                                            })
+                                            .catch(err=>{
+                                                console.error(getTimeStamp()+" db.updateConsignment(): ",err);
+                                                reject({code:1,msg:"Could not get consignments list",error:err});
+                                            })
+                                            
+                                        }
+                                    })
+                                }
+                            })
+                            .catch(e=>{
+                                console.error(getTimeStamp()+" saveFile(): Could not save tax assessment report file");
+                                reject({code:1,msg:"Could not save tax assessment report file"});
+                            })
+                        }
+                        else if(tax_assessment_receipt != null){
+                            saveFile(tax_assessment_receipt,{user:userId,target:'imports',refer_id:consId,name:"tax_assessment_receipt",isUpdate:isTar})
+                            .then(fileId=>{
+                                var updateSql = "update consignments_tb set ";
+                                var now = Date.now();
+                                var keys = Object.keys(data);
+                                var values = Object.values(data);
+                                keys.forEach((key,index)=>{
+                                    if(index < keys.length -1){
+                                        updateSql += key +"=?, ";
+                                        
+                                    }
+                                    else{
+                                        updateSql += key+"=?, date_modified=? where id=?";
+                                                
+                                    }
+                                });
+                                values.push(now);
+                                values.push(consId);
+                                con.query(updateSql,values,(e,r)=>{
+                                    if(e){
+                                        console.error(getTimeStamp()+" db.updateConsignment(): ",e);
+                                        reject({code:1,msg:"Could not update consignment record",error:e});
+                                    }
+                                    else{
+                                        con.release();
+                                        this.getConsignments(userId,data.type)
+                                        .then(result=>{
+                                            resolve({code:0,msg:"Successful",data:result.data});
+                                        })
+                                        .catch(err=>{
+                                            console.error(getTimeStamp()+" db.updateConsignment(): ",err);
+                                            reject({code:1,msg:"Could not get consignments list",error:err});
+                                        })
+                                        
+                                    }
+                                })
+                            })
+                            .catch(e=>{
+                                console.error(getTimeStamp()+" saveFile(): Could not save tax assessment receipt file");
+                                reject({code:1,msg:"Could not save tax assessment receipt file"});
+                            })
+                        }
+                        else if(release_order != null){
+                            saveFile(release_order,{user:userId,target:'imports',refer_id:consId,name:"release_order",isUpdate:isRelease})
+                            .then(fileId=>{
+                                var updateSql = "update consignments_tb set ";
+                                var now = Date.now();
+                                var keys = Object.keys(data);
+                                var values = Object.values(data);
+                                keys.forEach((key,index)=>{
+                                    if(index < keys.length -1){
+                                        updateSql += key +"=?, ";
+                                        
+                                    }
+                                    else{
+                                        updateSql += key+"=?, date_modified=? where id=?";
+                                                
+                                    }
+                                });
+                                values.push(now);
+                                values.push(consId);
+                                con.query(updateSql,values,(e,r)=>{
+                                    if(e){
+                                        console.error(getTimeStamp()+" db.updateConsignment(): ",e);
+                                        reject({code:1,msg:"Could not update consignment record",error:e});
+                                    }
+                                    else{
+                                        con.release();
+                                        this.getConsignments(userId,data.type)
+                                        .then(result=>{
+                                            resolve({code:0,msg:"Successful",data:result.data});
+                                        })
+                                        .catch(err=>{
+                                            console.error(getTimeStamp()+" db.updateConsignment(): ",err);
+                                            reject({code:1,msg:"Could not get consignments list",error:err});
+                                        })
+                                        
+                                    }
+                                })
+                            })
+                            .catch(e=>{
+                                console.error(getTimeStamp()+" saveFile(): Could not save tax assessment receipt file");
+                                reject({code:1,msg:"Could not save tax assessment receipt file"});
+                            })
+                        }
+                        else if(tasad_invoice != null){
+                            saveFile(tasad_invoice,{user:userId,target:'imports',refer_id:consId,name:"tasad_invoice",isUpdate:isTsr})
+                            .then(fileId=>{
+                                if(tasad_delivery_order != null){
+                                    saveFile(tasad_delivery_order,{user:userId,target:'imports',refer_id:consId,name:"tasad_delivery_order",isUpdate:isTsd})
+                                    .then(fileId=>{
+                                        var updateSql = "update consignments_tb set ";
+                                        var now = Date.now();
+                                        var keys = Object.keys(data);
+                                        var values = Object.values(data);
+                                        keys.forEach((key,index)=>{
+                                            if(index < keys.length -1){
+                                                updateSql += key +"=?, ";
+                                                
+                                            }
+                                            else{
+                                                updateSql += key+"=?, date_modified=? where id=?";
+                                                        
+                                            }
+                                        });
+                                        values.push(now);
+                                        values.push(consId);
+                                        con.query(updateSql,values,(e,r)=>{
+                                            if(e){
+                                                console.error(getTimeStamp()+" db.updateConsignment(): ",e);
+                                                reject({code:1,msg:"Could not update consignment record",error:e});
+                                            }
+                                            else{
+                                                con.release();
+                                                this.getConsignments(userId,data.type)
+                                                .then(result=>{
+                                                    resolve({code:0,msg:"Successful",data:result.data});
+                                                })
+                                                .catch(err=>{
+                                                    console.error(getTimeStamp()+" db.updateConsignment(): ",err);
+                                                    reject({code:1,msg:"Could not get consignments list",error:err});
+                                                })
+                                                
+                                            }
+                                        })
+                                    })
+                                    .catch(e=>{
+                                        console.error(getTimeStamp()+" saveFile(): Could not save tax assessment receipt file");
+                                        reject({code:1,msg:"Could not save tax assessment receipt file"});
+                                    })  
+                                }
+                                else{
+                                    var updateSql = "update consignments_tb set ";
+                                        var now = Date.now();
+                                        var keys = Object.keys(data);
+                                        var values = Object.values(data);
+                                        keys.forEach((key,index)=>{
+                                            if(index < keys.length -1){
+                                                updateSql += key +"=?, ";
+                                                
+                                            }
+                                            else{
+                                                updateSql += key+"=?, date_modified=? where id=?";
+                                                        
+                                            }
+                                        });
+                                        values.push(now);
+                                        values.push(consId);
+                                        con.query(updateSql,values,(e,r)=>{
+                                            if(e){
+                                                console.error(getTimeStamp()+" db.updateConsignment(): ",e);
+                                                reject({code:1,msg:"Could not update consignment record",error:e});
+                                            }
+                                            else{
+                                                con.release();
+                                                this.getConsignments(userId,data.type)
+                                                .then(result=>{
+                                                    resolve({code:0,msg:"Successful",data:result.data});
+                                                })
+                                                .catch(err=>{
+                                                    console.error(getTimeStamp()+" db.updateConsignment(): ",err);
+                                                    reject({code:1,msg:"Could not get consignments list",error:err});
+                                                })
+                                                
+                                            }
+                                        })
+                                }
+                            })
+                        }
+                        else if(tasad_delivery_order != null){
+                            saveFile(tasad_delivery_order,{user:userId,target:'imports',refer_id:consId,name:"tasad_delivery_order",isUpdate:isTsd})
+                            .then(fileId=>{
+                                var updateSql = "update consignments_tb set ";
+                                var now = Date.now();
+                                var keys = Object.keys(data);
+                                var values = Object.values(data);
+                                keys.forEach((key,index)=>{
+                                    if(index < keys.length -1){
+                                        updateSql += key +"=?, ";
+                                        
+                                    }
+                                    else{
+                                        updateSql += key+"=?, date_modified=? where id=?";
+                                                
+                                    }
+                                });
+                                values.push(now);
+                                values.push(consId);
+                                con.query(updateSql,values,(e,r)=>{
+                                    if(e){
+                                        console.error(getTimeStamp()+" db.updateConsignment(): ",e);
+                                        reject({code:1,msg:"Could not update consignment record",error:e});
+                                    }
+                                    else{
+                                        con.release();
+                                        this.getConsignments(userId,data.type)
+                                        .then(result=>{
+                                            resolve({code:0,msg:"Successful",data:result.data});
+                                        })
+                                        .catch(err=>{
+                                            console.error(getTimeStamp()+" db.updateConsignment(): ",err);
+                                            reject({code:1,msg:"Could not get consignments list",error:err});
+                                        })
+                                        
+                                    }
+                                })
+                            })
+                            .catch(e=>{
+                                console.error(getTimeStamp()+" saveFile(): Could not save tax assessment receipt file");
+                                reject({code:1,msg:"Could not save tax assessment receipt file"});
+                            })  
                         }
                         else{
                             var updateSql = "update consignments_tb set ";
