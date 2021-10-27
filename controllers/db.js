@@ -7,7 +7,7 @@ const fs = require('fs');
 //consignment status
 const IMPORTS_STATUS = [
     {id:1,status:"Document Checklist"},
-    {id:2,status:"Consignmnt Data"},
+    {id:2,status:"Consignment Data"},
     {id:3,status:"Pending Tax Assessment"},
     {id:4,status:"Pending Verification"},
     {id:5,status:"Pending Delivery Order"}, 
@@ -2540,39 +2540,39 @@ exports.updateConsignment =(data)=>{
                                 }
                                 else{
                                     var updateSql = "update consignments_tb set ";
-                                        var now = Date.now();
-                                        var keys = Object.keys(data);
-                                        var values = Object.values(data);
-                                        keys.forEach((key,index)=>{
-                                            if(index < keys.length -1){
-                                                updateSql += key +"=?, ";
-                                                
-                                            }
-                                            else{
-                                                updateSql += key+"=?, date_modified=? where id=?";
-                                                        
-                                            }
-                                        });
-                                        values.push(now);
-                                        values.push(consId);
-                                        con.query(updateSql,values,(e,r)=>{
-                                            if(e){
-                                                console.error(getTimeStamp()+" db.updateConsignment(): ",e);
-                                                reject({code:1,msg:"Could not update consignment record",error:e});
-                                            }
-                                            else{
-                                                con.release();
-                                                this.getConsignments(userId,data.type)
-                                                .then(result=>{
-                                                    resolve({code:0,msg:"Successful",data:result.data});
-                                                })
-                                                .catch(err=>{
-                                                    console.error(getTimeStamp()+" db.updateConsignment(): ",err);
-                                                    reject({code:1,msg:"Could not get consignments list",error:err});
-                                                })
-                                                
-                                            }
-                                        })
+                                    var now = Date.now();
+                                    var keys = Object.keys(data);
+                                    var values = Object.values(data);
+                                    keys.forEach((key,index)=>{
+                                        if(index < keys.length -1){
+                                            updateSql += key +"=?, ";
+                                            
+                                        }
+                                        else{
+                                            updateSql += key+"=?, date_modified=? where id=?";
+                                                    
+                                        }
+                                    });
+                                    values.push(now);
+                                    values.push(consId);
+                                    con.query(updateSql,values,(e,r)=>{
+                                        if(e){
+                                            console.error(getTimeStamp()+" db.updateConsignment(): ",e);
+                                            reject({code:1,msg:"Could not update consignment record",error:e});
+                                        }
+                                        else{
+                                            con.release();
+                                            this.getConsignments(userId,data.type)
+                                            .then(result=>{
+                                                resolve({code:0,msg:"Successful",data:result.data});
+                                            })
+                                            .catch(err=>{
+                                                console.error(getTimeStamp()+" db.updateConsignment(): ",err);
+                                                reject({code:1,msg:"Could not get consignments list",error:err});
+                                            })
+                                            
+                                        }
+                                    })
                                 }
                             })
                         }
