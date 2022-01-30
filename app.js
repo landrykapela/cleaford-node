@@ -492,7 +492,7 @@ app.post("/user", (req, result) => {
     if(data.type == 0){
       if(!Object.values(data).includes(null) && data.status < 2) data.status = 2;
     }
-    
+    console.log("cd: ",data);
   db.updateConsignment(data)
   .then(result=>{
     res.status(201).json(result);

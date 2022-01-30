@@ -1930,7 +1930,7 @@ exports.createConsignment =(data)=>{
 }
 
 //get all consignments for user
-exports.getConsignments = (userId,type=null)=>{
+exports.getConsignments = (userId)=>{
     return new Promise((resolve,reject)=>{
         this.getUser(userId)
         .then(result=>{
@@ -1944,8 +1944,8 @@ exports.getConsignments = (userId,type=null)=>{
                         }
                         else{
                             if(exist){
-                                let t = type == null || type == undefined ? 0:1;
-                                con.query("select * from consignments_tb where type=? order by id desc",[t],(e,r)=>{
+                                // let t = type == null || type == undefined ? 0:1;
+                                con.query("select * from consignments_tb order by id desc",(e,r)=>{
                                     con.release();
                                     con.destroy();
                                     if(e){
@@ -1955,7 +1955,7 @@ exports.getConsignments = (userId,type=null)=>{
                                     }
                                     else{
                                         let consignments = r.map(i=>{
-                                            i.status_text = type == null ? CONSIGNMENT_STATUS.filter(s=>s.id == i.status)[0].status:IMPORTS_STATUS.filter(s=>s.id == i.status)[0].status;
+                                            i.status_text = i.type == 0 ? CONSIGNMENT_STATUS.filter(s=>s.id == i.status)[0].status:IMPORTS_STATUS.filter(s=>s.id == i.status)[0].status;
                                             return i;
                                         });
                                         this.getAllUserFiles(userId)
@@ -2034,7 +2034,86 @@ exports.getConsignments = (userId,type=null)=>{
                                         reject({code:1,msg:"Could not create consignment table",error:e});
                                     }
                                     else{
-                                        resolve({code:0,"msg":"successful",data:newCons});
+                                        let t = type == null || type == undefined ? 0:1;
+                                con.query("select * from consignments_tb where type=? order by id desc",[t],(e,r)=>{
+                                    con.release();
+                                    con.destroy();
+                                    if(e){
+                                        console.error(getTimeStamp()+" db.getConsignment(): ",e);
+                                        reject({code:1,msg:"Could not get consignments",error:e});
+        
+                                    }
+                                    else{
+                                        let consignments = r.map(i=>{
+                                            i.status_text = type == null ? CONSIGNMENT_STATUS.filter(s=>s.id == i.status)[0].status:IMPORTS_STATUS.filter(s=>s.id == i.status)[0].status;
+                                            return i;
+                                        });
+                                        this.getAllUserFiles(userId)
+                                        .then(result=>{
+                                            consginments = r.map(c=>{
+                                                let i = c;
+                                                i.files = result.data.filter(d=>d.refer_id == c.id && d.target =="consignments_tb");
+                                                return i;
+                                            });
+                                            let consignmentsWithShipping = consignments;
+                                            this.getBookings(userId)
+                                            .then(result=>{
+                                                consignmentsWithShipping = consignments.map(c=>{
+                                                    let cs = c;
+                                                    cs.shipping_details = result.data.filter(sd=>sd.cid == c.id)[0];
+                                                    return cs;
+                                                })
+                                            })
+                                            .catch(e=>{
+                                                console.error(getTimeStamp()+" db.getConsignments(): ",e);
+                                            })
+                                            .finally(()=>{
+                                                let newCons = consignmentsWithShipping;
+                                                this.getContainers(userId).then(result=>{
+                                                    newCons = consignmentsWithShipping.map(c=>{
+                                                        let cs = c;
+                                                        cs.container_details = result.data.filter(rs=>rs.cid == c.id)
+                                                        return cs;
+                                                    });
+                                                    
+                                                })
+                                                .catch(e=>{
+                                                    console.error(getTimeStamp()+" db.getConsignments(): ",e);
+                                                })
+                                                .finally(()=>{
+                                                    let consWithInv = newCons;
+                                                    this.getInvoices(userId).then(result=>{
+                                                        consWithInv = newCons.map(c=>{
+                                                            let cs = c;
+                                                            cs.invoices = result.data.filter(rs=>rs.consignment == c.id);
+                                                            return cs;
+                                                        })
+                                                    }).catch(e=>{
+                                                        console.error(getTimeStamp()+" db.getConsignments(): ",e);
+                                                    }).finally(()=>{
+                                                        let consWithPetty = consWithInv;
+                                                    this.getPettyCash(userId).then(result=>{
+                                                        consWithPetty = newCons.map(c=>{
+                                                            let cs = c;
+                                                            cs.expenses = result.data.filter(rs=>rs.consignment == c.id);
+                                                            return cs;
+                                                        })
+                                                    }).catch(e=>{
+                                                        console.error(getTimeStamp()+" db.getConsignments(): ",e);
+                                                    }).finally(()=>{
+
+                                                        resolve({code:0,msg:"Successful",data:consWithPetty})
+                                                    })
+                                                    })
+                                                })
+                                            })
+                                        }).catch(e=>{
+                                            console.error(getTimeStamp()+" db.getConsignments(): ",e);
+                                            reject({code:1,msg:"Could not get consignment fiels",error:e});
+                                        })
+                                       
+                                    }
+                                })
                                     }
                                     con.release();
                                     con.destroy();
@@ -2092,22 +2171,10 @@ exports.getConsignment = (userId,cid)=>{
                                         i.files = result.data.filter(d=>d.refer_id == c.id);
                                         return i;
                                     });
-                                    let consignmentsWithShipping = consignments;
-                                    this.getBookings(userId)
-                                    .then(result=>{
-                                        consignmentsWithShipping = consignments.map(c=>{
-                                            let cs = c;
-                                            cs.shipping_details = result.data.filter(sd=>sd.cid == c.id)[0];
-                                            return cs;
-                                        })
-                                    })
-                                    .catch(e=>{
-                                        console.error(getTimeStamp()+" db.getConsignments(): ",e);
-                                    })
-                                    .finally(()=>{
-                                        let newCons = consignmentsWithShipping;
+                                   
+                                        let newCons = consignments;
                                         this.getContainers(userId).then(result=>{
-                                            newCons = consignmentsWithShipping.map(c=>{
+                                            newCons = consignments.map(c=>{
                                                 let cs = c;
                                                 cs.container_details = result.data.filter(rs=>rs.cid == c.id)
                                                 return cs;
@@ -2129,7 +2196,7 @@ exports.getConsignment = (userId,cid)=>{
                                                 }).finally(()=>{
                                                     let consWithPetty = consWithInv;
                                                     this.getPettyCash(userId).then(result=>{
-                                                    consWithInv = newCons.map(c=>{
+                                                    consWithPetty = newCons.map(c=>{
                                                         let cs = c;
                                                         cs.expenses = result.data.filter(rs=>rs.consignment == c.id);
                                                         return cs;
@@ -2137,7 +2204,40 @@ exports.getConsignment = (userId,cid)=>{
                                                     }).catch(e=>{
                                                         console.error(getTimeStamp()+" db.getConsignments(): ",e);
                                                     }).finally(()=>{
-                                                        resolve({code:0,msg:"Successful",data:consWithPetty})
+                                                        let consWithCont = consWithPetty;
+                                                        this.getContainers(userId).then(result=>{
+                                                            consWithCont = consWithPetty.map(c=>{
+                                                                let cs = c;
+                                                                cs.container_details = result.data.filter(rs=>rs.cid == c.id);
+                                                                return cs;
+                                                            })
+                                                        })
+                                                        .catch(e=>{
+                                                            console.error(getTimeStamp()+" db.getConsignments(): ",e);
+                                                        })
+                                                        .finally(()=>{
+                                                            if(consWithCont.length > 0 && consWithCont[0].type == 0){
+
+                                                                let consignmentsWithShipping = consWithCont;
+                                                                this.getBookings(userId)
+                                                                .then(result=>{
+                                                                    consignmentsWithShipping = consWithCont.map(c=>{
+                                                                        let cs = c;
+                                                                        cs.shipping_details = result.data.filter(sd=>sd.cid == c.id)[0];
+                                                                        return cs;
+                                                                    })
+                                                                })
+                                                                .catch(e=>{
+                                                                    console.error(getTimeStamp()+" db.getConsignments(): ",e);
+                                                                })
+                                                                .finally(()=>{
+                                                                    resolve({code:0,msg:"Successful",data:consignmentsWithShipping}) ;
+                                                                });
+                                                            }
+                                                            else{
+                                                                resolve({code:0,msg:"Successful",data:consignmentsWithShipping}) ;
+                                                            }
+                                                        
                                                     })
                                                 })
                                         })
@@ -2247,6 +2347,7 @@ exports.updateConsignment =(data)=>{
     var release_order = data.release_order;
     var tasad_delivery_order = data.tasad_delivery_order;
     var tasad_invoice = data.tasad_invoice;
+    var container_details = data.container_details;
     delete data.id;
     delete data.user;
     delete data.instructions_file;
@@ -2260,7 +2361,9 @@ exports.updateConsignment =(data)=>{
     delete data.tasad_delivery_order;
     delete data.isUpdateTsr;
     delete data.isUpdateTsd;
-
+    delete data.container_details;
+    if(data.type == 1) delete data.exporter_id;
+    else delete data.forwarder_id;
     console.log("data: ",data);
     return new Promise((resolve,reject)=>{
         this.getUser(userId).then(result=>{
@@ -2618,6 +2721,50 @@ exports.updateConsignment =(data)=>{
                                 console.error(getTimeStamp()+" saveFile(): Could not save tax assessment receipt file");
                                 reject({code:1,msg:"Could not save tax assessment receipt file"});
                             })  
+                        }
+                        else if(container_details){
+                            this.createContainer(userId,container_details)
+                            .then(result=>{
+                                var updateSql = "update consignments_tb set ";
+                                
+                                var now = Date.now();
+                                var keys = Object.keys(data);
+                                var values = Object.values(data);
+                                keys.forEach((key,index)=>{
+                                    if(index < keys.length -1){
+                                        updateSql += key +"=?, ";
+                                        
+                                    }
+                                    else{
+                                        updateSql += key+"=?, date_modified=? where id=?";
+                                                
+                                    }
+                                });
+                                values.push(now);
+                                values.push(consId);
+                                con.query(updateSql,values,(e,r)=>{
+                                    if(e){
+                                        console.error(getTimeStamp()+" db.updateConsignment(): ",e);
+                                        reject({code:1,msg:"Could not update consignment record",error:e});
+                                    }
+                                    else{
+                                        con.release();
+                                        this.getConsignments(userId,data.type)
+                                        .then(result=>{
+                                            resolve({code:0,msg:"Successful",data:result.data});
+                                        })
+                                        .catch(err=>{
+                                            console.error(getTimeStamp()+" db.updateConsignment(): ",err);
+                                            reject({code:1,msg:"Could not get consignments list",error:err});
+                                        })
+                                        
+                                    }
+                                })
+                            })
+                            .catch(e=>{
+                                console.error("db.updateConsignment(): ",e);
+                                reject({code:1,msg:"Could not update container details",error:err});
+                            })
                         }
                         else{
                             var updateSql = "update consignments_tb set ";
@@ -3197,16 +3344,18 @@ exports.createContainer = (userId,data)=>{
                                 }
                                 else{
                                     data.forEach(d=>{
-                                        var insertSql = (d.id == -1) ? "insert into container_bookings (" : "update container_bookings set ";
+                                        let id = d.id;
+                                        var insertSql = (d.id < 0) ? "insert into container_bookings (" : "update container_bookings set ";
+                                        delete d.id;
                                         var keys = Object.keys(d);
                                         var values = Object.values(d);
                                         keys.forEach(key=>{
-                                            insertSql += (d.id == -1) ? key +", " : key +"=?, ";
+                                            insertSql += (id <0) ? key +", " : key +"=?, ";
                                         });
-                                        insertSql += (d.id == -1) ? "date_modified) values (?)" : "date_modified=? where id=?";
+                                        insertSql += (id < 0) ? "date_modified) values (?)" : "date_modified=? where id=?";
                                         values.push(Date.now());
-                                        if(d.id > 0) {
-                                            values.push(d.id);
+                                        if(id > 0) {
+                                            values.push(id);
                                         }
                                         else values = [values];
                                         if(exist){
@@ -4318,7 +4467,7 @@ exports.createImport=(userId,data)=>{
                                 }
                                 else{
                                     con.destroy();
-                                    this.getImport(userId,r.insertId)
+                                    this.getConsignment(userId,r.insertId)
                                     .then(result=>{
                                         resolve({msg:"success",code:0,data:result.data});
                                     })
@@ -4688,7 +4837,24 @@ exports.getImport = (userId,cid)=>{
                                             }).catch(e=>{
                                                 console.error(getTimeStamp()+" db.getImport(): ",e);
                                             }).finally(()=>{
-                                                resolve({code:0,msg:"Successful",data:consWithPetty[0]})
+                                                let finalImport = consWithPetty;
+                                                this.getContainers(userId).then(result=>{
+                                                    finalImport = consWithPetty.map(r=>{
+                                                        let rs = r;
+                                                        rs.container_details = result.data.filter(d=>d.cid == r.id);
+                                                        return rs;
+                                                    })
+                                                    .catch(e=>{
+                                                        console.error(getTimeStamp()+" db.getImport(): ",e);
+                                                    })
+                                                    .finally(()=>{
+                                                        resolve({code:0,msg:"Successful",data:finalImport[0]})
+                                                    })
+                                                })
+                                                .catch(e=>{
+
+                                                })
+                                                
                                             })
                                         })
                                         
