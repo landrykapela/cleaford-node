@@ -1,6 +1,7 @@
 const mysql = require("mysql");
 const config = require("./config.json");
 const bcrypt = require("bcrypt");
+const mailer = require("nodemailer");
 require("dotenv").config();
 const fs = require('fs');
 
@@ -35,7 +36,7 @@ const pool = mysql.createPool({
     database: config.db,
     password: config.secret,
     waitForConnections: true,
-    connectionLimit: 10,
+    connectionLimit: 20,
     queueLimit: 0,
   });
 
@@ -107,12 +108,22 @@ const doesTableExist = (tableName,userId)=>{
 const getClientPool = (user)=>{
     let prefix = user.db.split("_")[1];
     return mysql.createPool({
-        socketPath:config.socket,host:config.host,
-        user: prefix+"_admin",
+        // socketPath:config.socket,
+        // host:config.host,
+        // user: prefix+"_admin",
+        // database: user.db,
+        // password: user.db_sec,
+        // waitForConnections: true,
+        // connectionLimit: 10,
+        // queueLimit: 0,
+
+        socketPath: config.socket,
+        host: config.host,
+        user: config.user,
         database: user.db,
-        password: user.db_sec,
+        password: config.secret,
         waitForConnections: true,
-        connectionLimit: 10,
+        connectionLimit: 20,
         queueLimit: 0,
     })
 }
@@ -1145,6 +1156,28 @@ exports.signIn = (email,password)=>{
     });
     
 }
+exports.resetPassword=(email)=>{
+    return new Promise((resolve,reject)=>{
+        let password = this.generateRandomPassword(8);
+        bcrypt.hash(password,10).then(hash=>{
+            let sql = "update user_tb set password=? where email=?";
+        pool.query(sql,[hash,email],(er,f)=>{
+            if(er){
+                console.error("db.resetPassword(): ",er);
+                reject({code:1,msg:"Oops! We could not reset your password"});
+            }
+            else{
+                this.emailPassword(email,password);
+                resolve({code:0,msg:'successful'});
+            }
+        });
+        }).catch((e)=>{
+            console.error("db.resetPassword(): ",e);
+            reject("Error generating new password");
+        })
+        
+    })
+}
 exports.getUser = (userId)=>{
     return new Promise((resolve,reject)=>{
         pool.getConnection((e,con)=>{
@@ -1488,7 +1521,7 @@ exports.getClientRoles = (user_id)=>{
             var sql = "select * from roles order by level asc";
             pool.getConnection((e,con)=>{
                 if(e){
-                    console.error("db.getClientRoles(): ",e);
+                    console.error("db.getClientRoles(1): ",e);
                     reject({code:1,msg:"Could not get connection to service",error:e});
                 }
                 else{
@@ -4098,8 +4131,7 @@ exports.getInvoices = (userId)=>{
 exports.getCostItems = (userId)=>{
     return new Promise((resolve,reject)=>{
         this.getUser(userId).then(result=>{
-            var pool = getClientPool(result.data);
-            
+            var pool = getClientPool(result.data);            
             doesTableExist("cost_items",userId).then(exist=>{
                 pool.getConnection((e,con)=>{
                     if(e){
@@ -4127,7 +4159,7 @@ exports.getCostItems = (userId)=>{
                 })
             })
             .catch(e=>{
-                reject({code:1,msg:"Could not verify table table",error:e});
+                reject({code:1,msg:"Could not verify table",error:e});
             })
                     
           
@@ -4289,7 +4321,7 @@ exports.deleteCostItem = (userId,itemId)=>{
                         if(e){
                             console.error("db.deleteClientRole(): ",e);
                             con.release();
-                            reject({code:1,msg:"Could not a delete cost item",error:e});
+                            reject({code:1,msg:"Could not delete cost item",error:e});
                         }
                         else{
                             con.release();
@@ -4880,5 +4912,31 @@ exports.getImport = (userId,cid)=>{
             console.error(getTimeStamp()+" db.getImport() :",e);
             reject({code:1,msg:"You need to login",error:e})
         })
+    })
+}
+
+//email user reset password
+exports.emailPassword=(email,password)=>{
+    email = 'landrykapela@gmail.com';
+    var transporter = mailer.createTransport({
+        service:'Cleaford Password Reset',
+        auth:{
+            user:'support@neelansoft.co.tz',
+            password:'100%5tr0N9'
+        }
+    });
+    var html = "<h1>PASSWORD RESET</h1><p>A password reset was requested using this email address, please use the password below to signin back to your account.</p><p><strong>"+password+"</strong></p><p>If you did not request this, please ignore this message</p>"
+    var options ={
+        to:email,from:'support@neelansoft.co.tz',subject:'Cleaford Password Reset',
+        html:html
+    }
+
+    transporter.sendMail(options,(error,info)=>{
+        if(error){
+            console.error("db.emailPassword(): ",error);
+        }
+        else{
+            console.log("db.emailPassword(): Email sent");
+        }
     })
 }

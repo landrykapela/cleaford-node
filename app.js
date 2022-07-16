@@ -5,17 +5,19 @@ const bcrypt = require("bcrypt");
 const jwt = require('jsonwebtoken');
 const db = require("./controllers/db");
 const app = express();
+const cors = require('cors');
 
 //set CORS
-app.use("/",(req, res, next) => {
-  res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Access-Control-Allow-Methods", "POST,GET,PUT,PATCH,DELETE");
-  res.setHeader(
-    "Access-Control-Allow-Headers",
-    "Origin, X-Requested-With, Content, Accept, Content-Type, Authorization"
-  );
-  next();
-});
+// app.use("/",(req, res, next) => {
+//   res.setHeader("Access-Control-Allow-Origin", "*");
+//   res.setHeader("Access-Control-Allow-Methods", "POST,GET,PUT,PATCH,DELETE");
+//   res.setHeader(
+//     "Access-Control-Allow-Headers",
+//     "Origin, X-Requested-With, Content, Accept, Content-Type, Authorization"
+//   );
+//   next();
+// });
+app.use(cors());
 //static files
 app.use("/static",express.static("data"));
 app.use(express.json({limit:'50mb'}))
@@ -172,7 +174,6 @@ app.put("/customer/:customer_id",authenticateToken,(req,res)=>{
   let customer_id = req.params.customer_id;
   let data = req.body;
   data.id = customer_id;
-  console.log("d: ",data);
   db.updateCustomer(data)
     .then(result=>{
       res.status(201).json(result);
@@ -264,15 +265,15 @@ app.post("/user", (req, result) => {
   });
 
   //reset user password
-  app.get("/reset_password/:email", (req, res) => {
-    let email = req.params.email;
-    // db.resetPassword(email)
-    //   .then((response) => {
-    //     res.status(201).json({ response });
-    //   })
-    //   .catch((error) => {
-    //     res.status(200).json({ error });
-    //   });
+  app.get("/reset_password", (req, res) => {
+    let email = req.body.email;
+    db.resetPassword(email)
+      .then((response) => {
+        res.status(201).json({ response });
+      })
+      .catch((error) => {
+        res.status(200).json({ error });
+      });
   });
   //get list of users
   app.get("/users", (req, res) => {
@@ -492,7 +493,6 @@ app.post("/user", (req, result) => {
     if(data.type == 0){
       if(!Object.values(data).includes(null) && data.status < 2) data.status = 2;
     }
-    console.log("cd: ",data);
   db.updateConsignment(data)
   .then(result=>{
     res.status(201).json(result);
@@ -504,6 +504,7 @@ app.post("/user", (req, result) => {
 //updload consignment fiels
 app.post("/uploads",authenticateToken,(req,res)=>{
   var data = {name:req.body.name,cid:req.body.cid,file:req.body.file,target:req.body.target,user:req.body.user};
+ 
   if(req.body.type == "import"){
     db.updateImportFile(data).then(result=>res.status(201).json(result))
     .catch(e=>{
@@ -691,7 +692,6 @@ app.get("/cost_items/:userId",authenticateToken,(req,res)=>{
 //add cost iem
 app.post("/cost_items/:userId",authenticateToken,(req,res)=>{
   var data = req.body;
-  console.log("t: ",data);
   db.createCostItem(req.params.userId,data)
   .then(result=>{
     res.status(201).json(result);
@@ -757,7 +757,6 @@ app.get("/petty_cash/:userId",authenticateToken,(req,res)=>{
       res.status(200).json(result);
     })
     .catch(e=>{
-      console.log("test: ",e);
       res.status(200).json(e);
     })
   })
