@@ -6,6 +6,7 @@ const jwt = require('jsonwebtoken');
 const db = require("./controllers/db");
 const app = express();
 const cors = require('cors');
+const multer = require("./multer");
 
 //set CORS
 // app.use("/",(req, res, next) => {
@@ -779,5 +780,38 @@ app.get("/petty_cash/:userId",authenticateToken,(req,res)=>{
       res.status(200).json(e);
     })
     
+  })
+  app.post("/hr/:userId",authenticateToken,multer,(req,res)=>{
+    var data = req.body;
+    db.createEmployee(data,req.files,req.params.userId)
+    .then(result=>{
+      res.status(201).json(result);
+    })
+    .catch(er=>{
+      res.status(200).json(er);
+    })
+
+  })
+  app.put("/hr/:userId",authenticateToken,multer,(req,res)=>{
+    var data = req.body;
+    console.log("files: ",Object.keys(req.files));
+    db.updateEmployee(data,req.files,req.params.userId)
+    .then(result=>{
+      res.status(201).json(result);
+    })
+    .catch(er=>{
+      res.status(200).json(er);
+    })
+
+  })
+  app.post("/hr",authenticateToken,(req,res)=>{
+    var id = req.body.uid;
+    console.log("xx: ",req.body);
+    db.getEmployees(id).then(result=>{
+      res.status(200).json(result);
+    })
+    .catch(e=>{
+      res.status(200).json(e);
+    })
   })
 module.exports = app;

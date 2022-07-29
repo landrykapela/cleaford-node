@@ -2343,12 +2343,12 @@ exports.updateConsignmentFile = (data)=>{
                         
                     })
                     .catch(e=>{
-                        console.error(getTimeStamp()+" db.updateConsignmentFiles(): ",e);
+                        console.error(getTimeStamp()+" db.updateConsignmentFile(): ",e);
                         reject(e);
                     })
                 }
                 else{
-                    console.error(getTimeStamp()+" db.updateConsignmentFiles(): ");
+                    console.error(getTimeStamp()+" db.updateConsignmentFile(): ");
                     reject({code:1,msg:"Could not find consignment"});
                 }
             })
@@ -2397,7 +2397,7 @@ exports.updateConsignment =(data)=>{
     delete data.container_details;
     if(data.type == 1) delete data.exporter_id;
     else delete data.forwarder_id;
-    console.log("data: ",data);
+    console.log("dataz : ",data,consId);
     return new Promise((resolve,reject)=>{
         this.getUser(userId).then(result=>{
             var userData = result.data;
@@ -2409,7 +2409,7 @@ exports.updateConsignment =(data)=>{
                         reject({code:1,msg:"Could not get connection to service",error:e});
                     }
                     else{
-                        if(instructions_file != null){
+                        if(instructions_file){
                             saveFile(instructions_file,{user:userId,target:'consignments_tb',refer_id:consId,name:"shipping instructions",isUpdate:true})
                             .then(fileId=>{
                                 // data.instructions_file = fileId; 
@@ -2418,15 +2418,10 @@ exports.updateConsignment =(data)=>{
                                 var keys = Object.keys(data);
                                 var values = Object.values(data);
                                 keys.forEach((key,index)=>{
-                                    if(index < keys.length -1){
-                                        updateSql += key +"=?, ";
-                                        
-                                    }
-                                    else{
-                                        updateSql += key+"=?, date_modified=? where id=?";
-                                                
-                                    }
+                                    updateSql += key +"=?, ";
+                                
                                 });
+                                updateSql += "date_modified=? where id=?";
                                 values.push(now);
                                 values.push(consId);
                                 con.query(updateSql,values,(e,r)=>{
@@ -2438,6 +2433,7 @@ exports.updateConsignment =(data)=>{
                                         con.release();
                                         this.getConsignments(userId,data.type)
                                         .then(result=>{
+                                            console.log("rss: ",result.data);
                                             resolve({code:0,msg:"Successful",data:result.data});
                                         })
                                         .catch(err=>{
@@ -2454,7 +2450,7 @@ exports.updateConsignment =(data)=>{
                             })
                            
                         }
-                        else if(tax_assessment_report != null){
+                        else if(tax_assessment_report){
                             saveFile(tax_assessment_report,{user:userId,target:'imports',refer_id:consId,name:"tax_assessment_report",isUpdate:isTap})
                             .then(fileId=>{
                                 if(tax_assessment_receipt != null){
@@ -2542,7 +2538,7 @@ exports.updateConsignment =(data)=>{
                                 reject({code:1,msg:"Could not save tax assessment report file"});
                             })
                         }
-                        else if(tax_assessment_receipt != null){
+                        else if(tax_assessment_receipt){
                             saveFile(tax_assessment_receipt,{user:userId,target:'imports',refer_id:consId,name:"tax_assessment_receipt",isUpdate:isTar})
                             .then(fileId=>{
                                 var updateSql = "update consignments_tb set ";
@@ -2585,7 +2581,7 @@ exports.updateConsignment =(data)=>{
                                 reject({code:1,msg:"Could not save tax assessment receipt file"});
                             })
                         }
-                        else if(release_order != null){
+                        else if(release_order){
                             saveFile(release_order,{user:userId,target:'imports',refer_id:consId,name:"release_order",isUpdate:isRelease})
                             .then(fileId=>{
                                 var updateSql = "update consignments_tb set ";
@@ -2628,7 +2624,7 @@ exports.updateConsignment =(data)=>{
                                 reject({code:1,msg:"Could not save tax assessment receipt file"});
                             })
                         }
-                        else if(tasad_invoice != null){
+                        else if(tasad_invoice){
                             saveFile(tasad_invoice,{user:userId,target:'imports',refer_id:consId,name:"tasad_invoice",isUpdate:isTsr})
                             .then(fileId=>{
                                 if(tasad_delivery_order != null){
@@ -2712,7 +2708,7 @@ exports.updateConsignment =(data)=>{
                                 }
                             })
                         }
-                        else if(tasad_delivery_order != null){
+                        else if(tasad_delivery_order){
                             saveFile(tasad_delivery_order,{user:userId,target:'imports',refer_id:consId,name:"tasad_delivery_order",isUpdate:isTsd})
                             .then(fileId=>{
                                 var updateSql = "update consignments_tb set ";
@@ -2825,6 +2821,7 @@ exports.updateConsignment =(data)=>{
                                     con.release();
                                     this.getConsignments(userId,data.type)
                                     .then(result=>{
+                                        console.log("rss2: ",result.data);
                                         resolve({code:0,msg:"Successful",data:result.data});
                                     })
                                     .catch(err=>{
@@ -4187,8 +4184,8 @@ exports.createCostItem = (userId,data)=>{
                     }
                     else{
                         if(exist){
-                            sql = "insert into cost_items (name,description,price,at_cost,date_created) values (?)";
-                            let values = [data.name,data.description,data.price,data.at_cost,Date.now()];
+                            sql = "insert into cost_items (name,description,price,at_cost,date_created,per_container) values (?)";
+                            let values = [data.name,data.description,data.price,data.at_cost,Date.now(),data.per_container];
                             con.query(sql,[values],(e,r)=>{
                                 if(e){
                                     console.error("db.createClientRole(): ",e);
@@ -4208,7 +4205,7 @@ exports.createCostItem = (userId,data)=>{
                             })
                         }
                         else{
-                            let sql = "create table if not exists cost_items (id int(3) auto_increment primary key,name varchar(50) not null,description varchar(255),price varchar(15) default '0',at_cost int(1) default 0,date_created bigint)";
+                            let sql = "create table if not exists cost_items (id int(3) auto_increment primary key,name varchar(50) not null,description varchar(255),price varchar(15) default '0',at_cost int(1) default 0,date_created bigint,per_container int(1) default 0)";
                             con.query(sql,(e,r)=>{
                                 if(e){
                                     console.error("db.createCostItem(): ",e);
@@ -4216,8 +4213,8 @@ exports.createCostItem = (userId,data)=>{
                                     reject({code:1,msg:"Could not create a cost items",error:e});
                                 }
                                 else{
-                                    sql = "insert into cost_items (name,description,price,at_cost,date_created) values (?)";
-                                    let values = [data.name,data.description,data.price,data.at_cost,Date.now()];
+                                    sql = "insert into cost_items (name,description,price,at_cost,date_created,per_container) values (?)";
+                                    let values = [data.name,data.description,data.price,data.at_cost,Date.now(),data.per_container];
                                     con.query(sql,[values],(e,r)=>{
                                         if(e){
                                             console.error("db.createClientRole(): ",e);
@@ -4939,4 +4936,248 @@ exports.emailPassword=(email,password)=>{
             console.log("db.emailPassword(): Email sent");
         }
     })
+}
+
+//create employee
+exports.createEmployee=(data,files,userId)=>{
+    return new Promise((resolve,reject)=>{
+        this.getUser(userId)
+        .then(result=>{
+            let user = result.data;
+            var clientPool = getClientPool(user);
+            doesTableExist("employees_tb",userId)
+            .then(exist=>{
+                if(data.emp_photo) {
+                    data.photo = data.emp_photo;
+                    delete data.emp_photo;
+                }
+                if(data.emp_id_file) {
+                    data.id_file = data.emp_id_file;
+                    delete data.emp_id_file;
+                }
+                if(data.emp_contract_file) {
+                    data.contract_file = data.emp_contract_file;
+                    delete data.emp_contract_file;
+                }
+                var fields = Object.keys(data);
+                var values = Object.values(data);
+                if(files){
+                    var fs = Object.keys(files).map(f=>f.replace("emp_",""));
+                    fs.forEach(f=>{
+                        fields.push(f);
+                    })
+                    Object.values(files).forEach(f=>{
+                        values.push(f[0].filename);
+                    })
+                }
+                fields = [...new Set(fields)];
+                fields.push("date_created");
+                fields.push("date_modified");
+                values.push(Date.now(),Date.now());
+                var sql = "insert into employees_tb ("+fields.join(",") +") values(?)";
+                if(exist){
+                    clientPool.getConnection((e,con)=>{
+                        if(e){
+                            console.error("db.createEmployee(): "+getTimeStamp(),e);
+                            reject({code:1,msg:"Could not get connection to database"});
+                        }
+                        else{
+                            con.query(sql,[values],(e,r)=>{
+                                con.release();
+                                con.destroy();
+                                if(e){
+                                    console.error("db.createEmployee(): "+getTimeStamp(),e);
+                                    reject({code:1,msg:"Oops! Somthing went wrong"});
+                                }
+                                else{
+                                    this.getEmployees(userId).then(result=>{
+                                        resolve({code:0,msg:"successful",data:result.data});
+                                    })
+                                    .catch(e=>{
+                                        console.error("db.createEmployee(): "+getTimeStamp(),e);
+                                        reject({code:1,msg:"Could not retrieve the updated employee list"});
+                                    })
+                                }
+                            });
+                        }
+                    })
+                }
+                else{
+                    var sqltb = "create table employees_tb (id int auto_increment primary key,";
+                    fields.forEach((f,i)=>{
+                        var type = " VARCHAR(255)";
+                        if(f.includes("date")) type = " BIGINT";
+                        if(i <fields.length -1) sqltb += f+type +", ";
+                        else sqltb += f+type
+                    });
+                    sqltb += ")";
+                    clientPool.getConnection((e,con)=>{
+                        if(e){
+                            console.error("db.createEmployee(): "+getTimeStamp(),e);
+                            reject({code:1,msg:"Could not get connection to database"});
+                        }
+                        else{
+                            con.query(sqltb,(e,r)=>{
+                                if(e){
+                                    console.error("db.createEmployee(): "+getTimeStamp(),e);
+                                    reject({code:1,msg:"Could not create employees table"});
+                                }
+                                else{
+                                    con.query(sql,[values],(e,r)=>{
+                                    con.release();
+                                    con.destroy();
+                                    if(e){
+                                        console.error("db.createEmployee(): "+getTimeStamp(),e);
+                                        reject({code:1,msg:"Oops! Somthing went wrong"});
+                                    }
+                                    else{
+                                        this.getEmployees(userId).then(result=>{
+                                            resolve({code:0,msg:"successful",data:result.data});
+                                        })
+                                        .catch(e=>{
+                                            console.error("db.createEmployee(): "+getTimeStamp(),e);
+                                            reject({code:1,msg:"Could not retrieve the updated employee list"});
+                                        })
+                                    }
+                                    })
+                                }
+                                
+                            })
+                        }
+                    })
+                }
+            })
+            .catch(e=>{
+                console.error("db.createEmployee(): "+getTimeStamp(),e);
+                reject({code:1,msg:"Could not verify table"});
+            })
+        })
+        .catch(e=>{
+            reject({code:1,msg:"You need to login dude"})
+        })
+});
+}
+
+//create employee
+exports.updateEmployee=(data,files,userId)=>{
+    return new Promise((resolve,reject)=>{
+        this.getUser(userId)
+        .then(result=>{
+            let user = result.data;
+            var clientPool = getClientPool(user);
+            doesTableExist("employees_tb",userId)
+            .then(exist=>{
+                var id = data.id;
+                delete data.id;
+                delete data.emp_photo;
+                delete data.emp_id_file;
+                delete data.emp_contract_file;
+                var fields = Object.keys(data);
+                var values = Object.values(data);
+                if(files){
+                    var fs = Object.keys(files).map(f=>f.replace("emp_",""));
+                    fs.forEach(f=>{
+                        fields.push(f);
+                    })
+                    Object.values(files).forEach(f=>{
+                        values.push(f[0].filename);
+                    })
+                }
+
+                var sql = "update employees_tb set ";
+                fields.forEach(f=>{
+                    sql += f+"=?,";
+                });
+                sql += "date_modified=? where id=?";
+                values.push(Date.now());
+                values.push(id);
+                if(exist){
+                    clientPool.getConnection((e,con)=>{
+                        if(e){
+                            console.error("db.updateEmployee(): "+getTimeStamp(),e);
+                            reject({code:1,msg:"Could not get connection to database"});
+                        }
+                        else{
+                            con.query(sql,values,(e,r)=>{
+                                con.release();
+                                con.destroy();
+                                if(e){
+                                    console.error("db.updateEmployee(): "+getTimeStamp(),e);
+                                    reject({code:1,msg:"Oops! Somthing went wrong"});
+                                }
+                                else{
+                                    this.getEmployees(userId).then(rs=>{
+                                        resolve({code:0,msg:"successful",data:rs.data});
+                                    })
+                                    .catch(e=>{
+                                        console.error("db.updateEmployee(): "+getTimeStamp(),e);
+                                        reject({code:1,msg:"Could not retrieve the updated employee list"});
+                                    })
+                                }
+                            });
+                            
+                        }
+                    })
+                }
+                else{
+                    reject({code:1,msg:"Could not find employees table"});
+                }
+            })
+            .catch(e=>{
+                console.error("db.updateEmployee(): "+getTimeStamp(),e);
+                reject({code:1,msg:"Could not verify table"});
+            })
+        })
+        .catch(e=>{
+            reject({code:1,msg:"You need to login"})
+        })
+});
+}
+
+//get employees list
+exports.getEmployees=(userId)=>{
+    return new Promise((resolve,reject)=>{
+        this.getUser(userId)
+        .then(result=>{
+            let user = result.data;
+            var clientPool = getClientPool(user);
+            doesTableExist("employees_tb",userId)
+            .then(exist=>{
+                if(exist){
+                    var sql = "select * from employees_tb order by name asc";
+                    clientPool.getConnection((e,con)=>{
+                        if(e){
+                            console.error("db.getEmployees(): "+getTimeStamp(),e);
+                            reject({code:1,msg:"Could not get connection to database"});
+                        }
+                        else{
+                            con.query(sql,(e,result)=>{
+                                con.release();
+                                con.destroy();
+                                if(e){
+                                    console.error("db.getEmployees(): "+getTimeStamp(),e);
+                                    reject({code:1,msg:"Oops! Somthing went wrong"});
+                                }
+                                else{
+                                    resolve({code:0,msg:"successful",data:result});
+                                 
+                                }
+                            });
+                        }
+                    })
+                }
+                else{
+                    reject({code:1,msg:"No employee records exist"});
+                }
+            })
+            .catch(e=>{
+                console.error("db.getEmployees(): "+getTimeStamp(),e);
+                reject({code:1,msg:"Could not find employees table"});
+            })
+        })
+        .catch(e=>{
+            console.error("db.getEmployees(): "+getTimeStamp(),e);
+            reject({code:1,msg:"You need to login"});
+        })
+    });
 }
