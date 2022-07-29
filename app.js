@@ -741,7 +741,17 @@ app.get("/petty_cash/:userId",authenticateToken,(req,res)=>{
     res.status(200).json(e);
   })
 })
-
+//update petty cash
+app.put("/petty_cash_update/:userId",authenticateToken,(req,res)=>{
+  console.log("bo: ",req.body);
+  db.updatePettyCash(req.params.userId,req.body)
+  .then(result=>{
+    res.status(201).json(result);
+  })
+  .catch(e=>{
+    res.status(200).json(e);
+  })
+})
 //getpaymetn terms
   app.get("/payments",authenticateToken,(req,res)=>{
     db.getPaymentTerms().then(result=>{

@@ -4357,8 +4357,8 @@ exports.recordPettyCash = (userId,data)=>{
                     }
                     else{
                         if(exist){
-                            sql = "insert into petty_cash (date_created,voucher,description,name,amount,balance,type,consignment) values (?)";
-                            let values = [data.date_created,data.voucher,data.description,data.name,data.amount,data.balance,data.type,data.consignment];
+                            sql = "insert into petty_cash (date_created,voucher,description,name,amount,balance,type,consignment,status) values (?)";
+                            let values = [data.date_created,data.voucher,data.description,data.name,data.amount,data.balance,data.type,data.consignment,0];
                             con.query(sql,[values],(e,r)=>{
                                 if(e){
                                     console.error("db.recordPettyCash(): ",e);
@@ -4378,7 +4378,7 @@ exports.recordPettyCash = (userId,data)=>{
                             })
                         }
                         else{
-                            let sql = "create table if not exists petty_cash (id int(10) auto_increment primary key,date_created bigint,voucher int(10),description varchar(255),name varchar(50),amount varchar(15),opening_balance varchar(15),balance varchar(15),type int(1),consignment int(10))";
+                            let sql = "create table if not exists petty_cash (id int(10) auto_increment primary key,date_created bigint,voucher int(10),description varchar(255),name varchar(50),amount varchar(15),opening_balance varchar(15),balance varchar(15),type int(1),consignment int(10),status int(1) default 0)";
                             con.query(sql,(e,r)=>{
                                 if(e){
                                     console.error("db.recordPettyCash: ",e);
@@ -4386,8 +4386,8 @@ exports.recordPettyCash = (userId,data)=>{
                                     reject({code:1,msg:"Could not create a petty cash table",error:e});
                                 }
                                 else{
-                                    sql = "insert into petty_cash (date_created,voucher,description,name,amount,balance,type,consignment) values (?)";
-                                    let values = [data.date_created,data.voucher,data.description,data.name,data.amount,data.balance,data.type,data.consignment];
+                                    sql = "insert into petty_cash (date_created,voucher,description,name,amount,balance,type,consignment,status) values (?)";
+                                    let values = [data.date_created,data.voucher,data.description,data.name,data.amount,data.balance,data.type,data.consignment,0];
                                     con.query(sql,[values],(e,r)=>{
                                         if(e){
                                             console.error("db.recordPettyCash(): ",e);
@@ -4439,7 +4439,7 @@ exports.getPettyCash = (userId)=>{
                     }
                     else{
                         if(exist){
-                            sql = "select * from petty_cash order by date_created asc";
+                            sql = "select * from petty_cash where status = 0 order by date_created asc";
                             con.query(sql,(e,r)=>{
                                 if(e){
                                     console.error("db.getPettyCash(): ",e);
@@ -4470,7 +4470,70 @@ exports.getPettyCash = (userId)=>{
         })
     })
 }
+exports.updatePettyCash =(userId,data)=>{
+    return new Promise((resolve,reject)=>{
+        this.getUser(userId)
+        .then(result=>{
+            let user = result.data;
+            var clientPool = getClientPool(user);
+            doesTableExist("petty_cash",userId)
+            .then(exist=>{
+                clientPool.getConnection((er,con)=>{
+                    if(er){
+                        console.error("updatePettyCash(): ",er);
+                        reject({code:1,msg:"Could not get a connection to service",error:er});
+                    }
+                    else{
+                        if(exist){
+                            var id = data.id;
+                            delete data.id;
+                            var fields = Object.keys(data);
+                            var values = Object.values(data);
 
+                            sql = "update petty_cash set ";
+                            fields.forEach((f,i)=>{
+                                sql += f+"=?, ";
+                            });
+                            sql += "date_modified=? where id=?";
+                            values.push(Date.now());
+                            values.push(id);
+                            con.query(sql,values,(e,r)=>{
+                                if(e){
+                                    console.error("db.updatePettyCash(): ",e);
+                                    con.release();
+                                    reject({code:1,msg:"Could not update transaction",error:e});
+                                }
+                                else{
+                                    con.release();
+                                    this.getPettyCash(userId)
+                                    .then(result=>{
+                                        resolve(result);
+                                    })
+                                    .catch(err=>{
+                                        reject(err)
+                                    })
+                                }
+                            })
+                        }
+                        else{
+                           con.release();
+                           reject({code:1,msg:"Could not find table for petty cash"});
+                        }
+                    }
+                })
+            
+            })
+            .catch(er=>{
+                console.error("db.updatePettyCash(): ",er);
+                reject({code:1,msg:"Could not verify table for petty cash",error:er});
+            });
+        })
+        .catch(er=>{
+            console.error("db.updatePettyCash: ",er);
+            reject({code:1,msg:"Could not get user",error:er});
+        })
+    })
+}
 //imports
 exports.createImport=(userId,data)=>{
     return new Promise((resolve,reject)=>{
