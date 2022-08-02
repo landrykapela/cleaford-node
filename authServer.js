@@ -35,6 +35,9 @@ app.post("/signin",(req,res)=>{
         let refreshToken = jwt.sign({email:user.email},process.env.REFRESH_TOKEN_SECRET);
         db.saveToken(refreshToken,user.email).then(result=>{
             u.data.accessToken = token;
+            delete u.password;
+            delete u.db;
+            delete u.db_sec;
             res.status(200).json(u);
         }).catch(e=>{
             res.status(200).json(e)
