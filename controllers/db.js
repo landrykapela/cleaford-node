@@ -1083,11 +1083,11 @@ exports.signUp =(email,password,token)=>{
                 reject({code:1,msg:"User already exists. Please go to sign in page"});
             }
             else{
-                let sql = "insert into user_tb(email,password,token,date_created) values (?) on duplicate key update password=values(password),token=values(token),date_created=values(date_created)";
+                let sql = "insert into user_tb(email,password,token,date_created,role) values (?) on duplicate key update password=values(password),token=values(token),date_created=values(date_created)";
                 bcrypt.hash(password,10)
                 .then((hash)=>{
                     let now = Date.now();
-                    let values = [email,hash,token,now]        
+                    let values = [email,hash,token,now,16];        
                     pool.query(sql,[values],(err,result)=>{
                         if(err){
                             console.error("db.signUp(): ",err);
@@ -1098,7 +1098,7 @@ exports.signUp =(email,password,token)=>{
                             .then(u=>{
                                 resolve(u)
                             }).catch(e=>{
-                                resolve({code:-1,msg:"Successfully created user. Please go to sign in",error:e});
+                                resolve({code:1,msg:"Successfully created user. Please go to sign in",error:e});
                             })
                             
                         }
@@ -1118,9 +1118,54 @@ exports.signUp =(email,password,token)=>{
         
     })
 }
+exports.addUser=(email,password,userId,role)=>{
+    return new Promise((resolve,reject)=>{
+        this.getUser(userId).then(result=>{
+            let user = result.data;
+            var pool = getClientPool(user);
+            this.getUserWithEmail(email).then(u=>{
+                if(u.data){
+                    reject({code:1,msg:"Cannot create user with this email address"});
+                }
+                else{
+                    bcrypt.hash(password,10).then(hash=>{
+                        var sql = "insert into user_tb (email,password,date_created,role,db,db_sec) values (?)";
+                        var values = [email,hash,Date.now(),role,user.db,user.db_sec];
+                        pool.getConnection((e,con)=>{
+                            if(e){
+                                console.error("db.getClientRoles(1): ",e);
+                                reject({code:1,msg:"Could not get connection to service",error:e});
+                            }
+                            else{
+                                con.query(sql,[values],(e,r)=>{
+                                    con.release();
+                                    if(e){
+                                        console.error("db.addUser(): "+getTimeStamp(),e);
+                                        reject({code:1,msg:"Cannot create user with this email address"});
+                                    }
+                                    else{
+                                        resolve({code:0,msg:"Successfully added user"});
+                                    }
+                                })
+                            }
+                        });
+                    }).catch(e=>{
+                        reject({code:1,msg:"Failed to encrypt your password"});
+                    })
+                    
+                }
+            }).catch(e=>{
+                reject({code:1,msg:"Could not verify email address"});
+            })
+            
+        }).catch(e=>{
+            reject({code:1,msg:"Please login with proper credentials to perform this operation"});
+        })
+    })
+}
 exports.signIn = (email,password)=>{
     return new Promise((resolve,reject)=>{
-        let sql = "select * from user_tb where email=?";
+        let sql = "select * from user_tb where email=? and role <> -1";
         pool.query(sql,[email],(err,row,field)=>{
             if(err){
                 console.error("db.signIn(): ",err);
@@ -3599,6 +3644,7 @@ exports.getContainers = (userId)=>{
 
 //create quotation
 exports.createQuotation = (userId,data)=>{
+    console.log("y: ",data);
     return new Promise((resolve,reject)=>{
         this.getUser(userId).then(result=>{
             var pool = getClientPool(result.data);
@@ -3621,51 +3667,34 @@ exports.createQuotation = (userId,data)=>{
                                 reject({code:1,msg:"Could not get connection to service",error:e});
                             }
                             else{
-                                con.beginTransaction((e)=>{
-                                    if(e){
-                                        con.destroy();
-                                    }
-                                    else{
-                                        con.query(sql,[values],(e,r)=>{
-                                            if(e){
-                                                console.error(getTimeStamp()+" db.createQuotation(): ",e);
-                                                reject({code:1,msg:"Could not create record",error:e});
-                                                con.destroy()
-                                            }
-                                            else{
-                                                if(con.commit()){
-                                                    con.release();
-                                                    this.getQuotations(userId)
-                                                    .then(rs=>{
-                                                        resolve({code:0,msg:"successful",data:rs.data});
-                                                    })
-                                                    .catch(e=>{
-                                                        reject({code:1,msg:"Could not retrieve updated list of consignments",error:e});
-                                                    })
-                                                }
-                                                else{
-                                                    con.rollback((e)=>{
-                                                        con.destroy();
-                                                        reject({code:1,msg:"Could not create record",error:e})
-                                                    })
-                                                    
-                                                }
-                                                
-                                            }
-                                        })
-                                    }
+                                con.query(sql,[values],(e,r)=>{
+                                if(e){
+                                    console.error(getTimeStamp()+" db.createQuotation(): ",e);
+                                    reject({code:1,msg:"Could not create record",error:e});
+                                    con.destroy()
+                                }
+                                else{
+                                    con.release();
+                                    this.getQuotations(userId)
+                                    .then(rs=>{
+                                        resolve({code:0,msg:"successful",data:rs.data});
+                                    })
+                                    .catch(e=>{
+                                        reject({code:1,msg:"Could not retrieve updated list of consignments",error:e});
+                                    })
+                                    
+                                }
                                 })
                             }
                         })
-                        
-                        
                     }
                     else{
                         var createSql = "create table quotations (id int(10) auto_increment primary key, ";
                         keys.forEach(key=>{
-                            if(key.toLowerCase() == "quantity") createSql += key+ " int(5), ";
+                            if(key.toLowerCase() == "items") createSql += key+ " varchar(512), ";
+                            else if(key.toLowerCase() == "quantity") createSql += key+ " int(5), ";
                             else if(key.toLowerCase() == "customer_id") createSql += key+" int(10), ";
-                            else createSql += key +" varchar(100), ";
+                            else createSql += key +" varchar(255), ";
                         });
                         createSql += "date_created bigint,date_modified bigint)";
                         pool.getConnection((e,con)=>{
@@ -3674,58 +3703,41 @@ exports.createQuotation = (userId,data)=>{
                                 reject({code:1,msg:"Could not get connection to service",error:e});
                             }
                             else{
-                                con.beginTransaction((e)=>{
+                                con.query(createSql,(e,r)=>{
                                     if(e){
-                                        con.destroy();
+                                        console.error(getTimeStamp()+" db.createBooking(): ",e);
+                                        reject({code:1,msg:"Could not create shipping table",error:e});
                                     }
                                     else{
-                                        con.query(createSql,(e,r)=>{
+                                        var sql = "insert into quotations (";
+                                
+                                        keys.forEach(key=>{
+                                        sql += key+", "
+                                        })
+                                        sql += "date_created,date_modified) values(?) ";
+                                        values.push(Date.now());
+                                        values.push(Date.now());
+                                        
+                                        con.query(sql,[values],(e,r)=>{
                                             if(e){
-                                                console.error(getTimeStamp()+" db.createBooking(): ",e);
-                                                reject({code:1,msg:"Could not create shipping table",error:e});
+                                                console.error(getTimeStamp()+" db.createQuotation(): ",e);
+                                                reject({code:1,msg:"Could not create record",error:e});
+                                                con.destroy()
                                             }
                                             else{
-                                                var sql = "insert into quotations (";
-                                        
-                                                keys.forEach(key=>{
-                                                sql += key+", "
+                                                con.release();
+                                                this.getQuotations(userId)
+                                                .then(rs=>{
+                                                    resolve({code:0,msg:"successful",data:rs.data});
                                                 })
-                                                sql += "date_created,date_modified) values(?) ";
-                                                values.push(Date.now());
-                                                values.push(Date.now());
-                                                
-                                                con.query(sql,[values],(e,r)=>{
-                                                    if(e){
-                                                        console.error(getTimeStamp()+" db.createQuotation(): ",e);
-                                                        reject({code:1,msg:"Could not create record",error:e});
-                                                        con.destroy()
-                                                    }
-                                                    else{
-                                                        if(con.commit()){
-                                                            con.release();
-                                                            this.getQuotations(userId)
-                                                            .then(rs=>{
-                                                                resolve({code:0,msg:"successful",data:rs.data});
-                                                            })
-                                                            .catch(e=>{
-                                                                resolve(result);
-                                                            })
-                                                        }
-                                                        else{
-                                                            con.rollback((e)=>{
-                                                                con.destroy();
-                                                                reject({code:1,msg:"Could not create record",error:e})
-                                                            })
-                                                            
-                                                        }
-                                                        
-                                                    }
+                                                .catch(e=>{
+                                                    resolve(result);
                                                 })
-                                                
                                             }
                                         })
+                                        
                                     }
-                                });
+                                })
                             }
                         })
                     }
@@ -3767,39 +3779,20 @@ exports.updateQuotation = (userId,data)=>{
                     reject({code:1,msg:"Could not get connection to service",error:e});
                 }
                 else{
-                    con.beginTransaction((e)=>{
+                    con.query(sql,values,(e,r)=>{
                         if(e){
                             console.error(getTimeStamp()+" db.updateQuotation(): ",e);
-                            reject({code:1,msg:"Could not begin transaction",error:e});
+                            reject({code:1,msg:"Could not update record",error:e});
                             con.destroy();
                         }
                         else{
-                            con.query(sql,values,(e,r)=>{
-                                if(e){
-                                    console.error(getTimeStamp()+" db.updateQuotation(): ",e);
-                                    reject({code:1,msg:"Could not update record",error:e});
-                                    con.destroy();
-                                }
-                                else{
-                                    if(con.commit()){
-                                        con.release();
-                                        this.getQuotations(userId)
-                                        .then(rs=>{
-                                            resolve({code:0,msg:"successful",data:rs.data});
-                                        })
-                                        .catch(e=>{
-                                            reject({code:1,msg:"Could not retrieve updated list of consignments",error:e});
-                                        })
-                                    }
-                                    else{
-                                        con.rollback((e)=>{
-                                            con.destroy();
-                                            reject({code:1,msg:"Could not create record",error:e})
-                                        })
-                                        
-                                    }
-                                    
-                                }
+                            con.release();
+                            this.getQuotations(userId)
+                            .then(rs=>{
+                                resolve({code:0,msg:"successful",data:rs.data});
+                            })
+                            .catch(e=>{
+                                reject({code:1,msg:"Could not retrieve updated list of consignments",error:e});
                             })
                         }
                     })
@@ -3926,9 +3919,10 @@ exports.createInvoice = (userId,data)=>{
                     else{
                         var createSql = "create table if not exists invoices (id int(10) auto_increment primary key, quotation int(10),consignment int(10),";
                         keys.forEach(key=>{
-                            if(key.toLowerCase() == "quantity") createSql += key+ " int(5), ";
+                            if(key.toLocaleLowerCase() === "items") createSql += key + " varchar(512), "
+                            else if(key.toLowerCase() == "quantity") createSql += key+ " int(5), ";
                             else if(key.toLowerCase() == "customer_id") createSql += key+" int(10), ";
-                            else createSql += key +" varchar(100), ";
+                            else createSql += key +" varchar(255), ";
                         });
                         createSql += "date_created bigint,date_modified bigint)";
                         pool.getConnection((e,con)=>{
@@ -5053,13 +5047,21 @@ exports.createEmployee=(data,files,userId)=>{
                                     reject({code:1,msg:"Oops! Somthing went wrong"});
                                 }
                                 else{
-                                    this.getEmployees(userId).then(result=>{
-                                        resolve({code:0,msg:"successful",data:result.data});
-                                    })
-                                    .catch(e=>{
-                                        console.error("db.createEmployee(): "+getTimeStamp(),e);
-                                        reject({code:1,msg:"Could not retrieve the updated employee list"});
-                                    })
+                                    this.addUser(data.email,"password",userId,data.role)
+                                        .then(r=>{
+                                            this.getEmployees(userId).then(result=>{
+                                                resolve({code:0,msg:"successful",data:result.data});
+                                            })
+                                            .catch(e=>{
+                                                console.error("db.createEmployee(): "+getTimeStamp(),e);
+                                                reject({code:1,msg:"Could not retrieve the updated employee list"});
+                                            })
+                                        })
+                                        .catch(e=>{
+                                            console.error("db.createEmployee(): "+getTimeStamp(),e);
+                                            reject({code:1,msg:"Could add user"});
+                                        })
+                                        
                                 }
                             });
                         }
@@ -5070,6 +5072,7 @@ exports.createEmployee=(data,files,userId)=>{
                     fields.forEach((f,i)=>{
                         var type = " VARCHAR(255)";
                         if(f.includes("date")) type = " BIGINT";
+                        else if(f.toLowerCase() === "status") type = ' int(1) default 0';
                         if(i <fields.length -1) sqltb += f+type +", ";
                         else sqltb += f+type
                     });
@@ -5094,13 +5097,21 @@ exports.createEmployee=(data,files,userId)=>{
                                         reject({code:1,msg:"Oops! Somthing went wrong"});
                                     }
                                     else{
-                                        this.getEmployees(userId).then(result=>{
-                                            resolve({code:0,msg:"successful",data:result.data});
+                                        this.addUser(data.email,"password",userId,data.role)
+                                        .then(r=>{
+                                            this.getEmployees(userId).then(result=>{
+                                                resolve({code:0,msg:"successful",data:result.data});
+                                            })
+                                            .catch(e=>{
+                                                console.error("db.createEmployee(): "+getTimeStamp(),e);
+                                                reject({code:1,msg:"Could not retrieve the updated employee list"});
+                                            })
                                         })
                                         .catch(e=>{
                                             console.error("db.createEmployee(): "+getTimeStamp(),e);
-                                            reject({code:1,msg:"Could not retrieve the updated employee list"});
+                                            reject({code:1,msg:"Could add user"});
                                         })
+                                        
                                     }
                                     })
                                 }

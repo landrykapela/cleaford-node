@@ -612,6 +612,7 @@ app.put("/container/:userId/:containerId",authenticateToken,(req,res)=>{
 //quotations
 app.post("/quotations/:userId",authenticateToken,(req,res)=>{
   var data = req.body;
+  console.log("x: ",data);
   db.createQuotation(req.params.userId,data)
   .then(result=>{
     res.status(201).json(result);
