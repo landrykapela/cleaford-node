@@ -1122,7 +1122,6 @@ exports.addUser=(email,password,userId,role)=>{
     return new Promise((resolve,reject)=>{
         this.getUser(userId).then(result=>{
             let user = result.data;
-            var pool = getClientPool(user);
             this.getUserWithEmail(email).then(u=>{
                 if(u.data){
                     reject({code:1,msg:"Cannot create user with this email address"});
@@ -1179,6 +1178,9 @@ exports.signIn = (email,password)=>{
                         if(success){
                             this.getClient(user.email).then(result=>{
                                 user.detail = result.data;
+                                delete user.password;
+                                delete user.db;
+                                delete user.db_sec;
                                 resolve({code:0,msg:"successful",data:user});
                             })
                             .catch(e=>{
@@ -4997,6 +4999,7 @@ exports.emailPassword=(email,password)=>{
 
 //create employee
 exports.createEmployee=(data,files,userId)=>{
+    console.log("check in db.js: ");
     return new Promise((resolve,reject)=>{
         this.getUser(userId)
         .then(result=>{
@@ -5076,7 +5079,7 @@ exports.createEmployee=(data,files,userId)=>{
                         if(i <fields.length -1) sqltb += f+type +", ";
                         else sqltb += f+type
                     });
-                    sqltb += ")";
+                    sqltb += ", CONSTRAINT email UNIQUE(email))";
                     clientPool.getConnection((e,con)=>{
                         if(e){
                             console.error("db.createEmployee(): "+getTimeStamp(),e);

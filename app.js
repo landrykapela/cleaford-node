@@ -793,6 +793,7 @@ app.put("/petty_cash_update/:userId",authenticateToken,(req,res)=>{
     
   })
   app.post("/hr/:userId",authenticateToken,multer,(req,res)=>{
+    console.log("check in app.js: ");
     var data = req.body;
     db.createEmployee(data,req.files,req.params.userId)
     .then(result=>{
