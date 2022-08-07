@@ -605,6 +605,30 @@ exports.getClientById = (clientId)=>{
         })
     }) 
 }
+exports.getClientFromUser = (user)=>{
+    return new Promise((resolve,reject)=>{
+        let sql = "select * from user_tb where db=? and email <>? order by id asc limit 1";
+        
+        pool.query(sql,[user.db,user.email],(e,r,f)=>{
+            if(e){
+                console.error("db.getClientFromUser(): ",e);
+                reject({code:1,msg:"Failed to retrieve client"});
+            }
+            else{
+                if(r.length > 0){
+                    var clientEmail = r[0].email;
+                    this.getClient(clientEmail).then(c=>{
+                        resolve({code:0,msg:"Successful",data:c.data})
+                    }).catch(e=>{
+                        console.error("db.getClientFromUser(): "+getTimeStamp(),e);
+                        reject({code:1,msg:"Failed to retrieve client"});
+                    })
+                }
+                else resolve({code:0,msg:"Successful",data:null});
+            }
+        })
+    }) 
+}
 
 //create customer record
 exports.createCustomer=(data)=>{
@@ -1176,17 +1200,42 @@ exports.signIn = (email,password)=>{
                     bcrypt.compare(password,user.password,(err,success)=>{
                         if(err) reject("Signin failed. Check password");
                         if(success){
-                            this.getClient(user.email).then(result=>{
-                                user.detail = result.data;
-                                delete user.password;
-                                delete user.db;
-                                delete user.db_sec;
-                                resolve({code:0,msg:"successful",data:user});
-                            })
-                            .catch(e=>{
-                                console.error(getTimeStamp()+"signIn(): ",e);
-                                resolve({code:0,msg:"successful",data:user});
-                            })
+                            
+                            if(user.role === 16 ){
+                                this.getClient(user.email).then(result=>{
+                                    user.detail = result.data;
+                                    delete user.password;
+                                    delete user.db;
+                                    delete user.db_sec;
+                                    resolve({code:0,msg:"successful",data:user});
+                                })
+                                .catch(e=>{
+                                    console.error(getTimeStamp()+"signIn(): ",e);
+                                    resolve({code:0,msg:"successful",data:user});
+                                })
+                            }
+                            else{
+                                this.getEmployeeByEmail(user.email).then(result=>{
+                                    user.employee = result.data;
+                                    this.getClientFromUser(user).then(rs=>{
+                                        user.detail = rs.data;
+                                        delete user.password;
+                                        delete user.db;
+                                        delete user.db_sec;
+                                        resolve({code:0,msg:"successful",data:user});
+                                    }).catch(e=>{
+                                        console.error(getTimeStamp()+" signIn(): ",e);
+                                        resolve({code:1,msg:"Could not get client info",data:user});
+                                    })
+                                    
+                                    
+                                })
+                                .catch(e=>{
+                                    console.error(getTimeStamp()+" signIn(): ",e);
+                                    resolve({code:0,msg:"could not get employee details",data:user});
+                                })
+                            }
+                            
                             
                         }
                         else reject({code:1,msg:"Invalid Password"});
@@ -5254,6 +5303,53 @@ exports.getEmployees=(userId)=>{
         })
         .catch(e=>{
             console.error("db.getEmployees(): "+getTimeStamp(),e);
+            reject({code:1,msg:"You need to login"});
+        })
+    });
+}
+//get employee
+exports.getEmployeeByEmail=(email)=>{
+    return new Promise((resolve,reject)=>{
+        this.getUserWithEmail(email)
+        .then(result=>{
+            let user = result.data;
+            var clientPool = getClientPool(user);
+            doesTableExist("employees_tb",user.id)
+            .then(exist=>{
+                if(exist){
+                    var sql = "select * from employees_tb where email=? order by name asc limit 1";
+                    clientPool.getConnection((e,con)=>{
+                        if(e){
+                            console.error("db.getEmployeeByEmail(): "+getTimeStamp(),e);
+                            reject({code:1,msg:"Could not get connection to database"});
+                        }
+                        else{
+                            con.query(sql,[email],(e,result)=>{
+                                con.release();
+                                con.destroy();
+                                if(e){
+                                    console.error("db.getEmployeeByEmail(): "+getTimeStamp(),e);
+                                    reject({code:1,msg:"Oops! Somthing went wrong"});
+                                }
+                                else{
+                                    resolve({code:0,msg:"successful",data:result[0]});
+                                 
+                                }
+                            });
+                        }
+                    })
+                }
+                else{
+                    reject({code:1,msg:"No employee records exist"});
+                }
+            })
+            .catch(e=>{
+                console.error("db.getEmployeeByEmail(): "+getTimeStamp(),e);
+                reject({code:1,msg:"Could not find employees table"});
+            })
+        })
+        .catch(e=>{
+            console.error("db.getEmployeeByEmail(): "+getTimeStamp(),e);
             reject({code:1,msg:"You need to login"});
         })
     });
